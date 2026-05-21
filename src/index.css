@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;600;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans-apple: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Manrope", sans-serif;
+  --font-sans: "Manrope", var(--font-sans-apple);
+  --font-serif: "Instrument Serif", serif;
+  
+  --color-primary-green: #B9C8BC;
+  --color-secondary-brown: #5D4D44;
+  --color-accent-gold: #E8D5C4;
+  --color-bg-cream: #FAF9F6;
+  --color-bg-deep-brown: #F5EFE6;
+  --color-header-beige: #F9F5F0;
+}
+
+@layer base {
+  body {
+    @apply bg-bg-cream text-secondary-brown font-sans text-[17px] leading-relaxed antialiased min-h-screen;
+  }
+  
+  #root {
+    @apply min-h-screen;
+  }
+  
+  h1, h2, h3, h4 {
+    @apply font-serif tracking-tight;
+  }
+
+  a {
+    @apply text-inherit no-underline!;
+  }
+
+  a:focus {
+    @apply outline-none!;
+  }
+}
+
+/* Google Maps Fixes */
+.gm-style img {
+  max-width: none !important;
+}
+
+.map-container-fix {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+  position: relative;
+  background-color: #f1ede4;
+  background-image: radial-gradient(#d4af37 0.5px, transparent 0.5px);
+  background-size: 24px 24px;
+}
+
+/* Ensure Google Maps fills the container */
+.map-container-fix > div {
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+  inset: 0;
+}

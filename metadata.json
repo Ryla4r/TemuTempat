@@ -1,0 +1,11 @@
+{
+  "name": "TemuTempat",
+  "description": "Platform penemu hidden gem unik dengan rekomendasi cerdas AI, asisten travel Gemini, dan Smart Discovery Google Maps.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
