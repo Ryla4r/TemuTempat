@@ -470,7 +470,8 @@ export default function PlaceDetails() {
   const handleToggleBookmark = async () => {
     if (!id || !user) return;
     try {
-      await dataService.toggleBookmark(user.id, id);
+      const updated = await dataService.toggleBookmark(user.id, id);
+      setIsBookmarked(updated.includes(id));
     } catch (err) {
       console.error("Gagal toggle bookmark:", err);
     }
@@ -611,19 +612,6 @@ export default function PlaceDetails() {
                 <p className="text-xl font-serif text-secondary-brown tracking-tight border-b border-accent-gold">{place.address}</p>
               )}
             </div>
-            {user?.role !== 'admin' && (
-              <div className="space-y-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-[0.3em] text-secondary-brown/30">Rating:</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-serif text-secondary-brown">{place.rating}</span>
-                  <div className="flex gap-1">
-                    {[1,2,3,4,5].map(i => (
-                      <Star key={i} className={i <= Math.floor(place.rating) ? "text-accent-gold fill-accent-gold" : "text-secondary-brown/10"} size={12} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -672,9 +660,6 @@ export default function PlaceDetails() {
                 className={`w-20 h-20 flex items-center justify-center border-2 transition-all cursor-pointer ${isBookmarked ? "bg-accent-gold border-accent-gold text-secondary-brown" : "border-secondary-brown/10 text-secondary-brown/40 hover:border-secondary-brown"}`}
               >
                 <Bookmark size={28} fill={isBookmarked ? "currentColor" : "none"} />
-              </button>
-              <button className="w-20 h-20 flex items-center justify-center border-2 border-secondary-brown/10 text-secondary-brown/40 hover:border-secondary-brown transition-all cursor-pointer bg-transparent">
-                <Share2 size={28} />
               </button>
             </>
           )}
@@ -983,8 +968,8 @@ export default function PlaceDetails() {
 
       {/* Navigation Map Section */}
       {user?.role !== 'admin' && (
-        <div ref={navSectionRef} className="space-y-12 bg-bg-cream/20 py-24 rounded-[4rem]">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-12 px-12">
+        <div ref={navSectionRef} className="space-y-12 bg-bg-cream/20 py-12 md:py-24 rounded-[2rem] sm:rounded-[4rem]">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-12 px-6 sm:px-12">
             <div className="space-y-4">
               <div className="flex items-center gap-4 text-accent-gold font-extrabold uppercase tracking-[0.5em] text-[10px]">
                 <Navigation size={14} className="fill-accent-gold" /> Lokasi & Navigasi
@@ -1011,7 +996,7 @@ export default function PlaceDetails() {
             </div>
           </div>
 
-          <div className="mx-4 lg:mx-12 relative h-[500px] rounded-[3.5rem] overflow-hidden shadow-2xl border-4 border-white bg-bg-cream/50 ring-1 ring-secondary-brown/5">
+          <div className="mx-2 sm:mx-12 relative h-[350px] sm:h-[500px] rounded-[2rem] sm:rounded-[3.5rem] overflow-hidden shadow-2xl border-2 sm:border-4 border-white bg-bg-cream/50 ring-1 ring-secondary-brown/5">
             {place && (
               <MapComponent 
                 places={[place]} 
@@ -1022,7 +1007,7 @@ export default function PlaceDetails() {
               />
             )}
 
-            <div className="absolute top-8 left-8 bg-white/90 backdrop-blur-md p-6 rounded-[2rem] shadow-2xl border border-secondary-brown/5 max-w-xs transition-all hover:scale-105">
+            <div className="absolute top-4 left-4 sm:top-8 sm:left-8 bg-white/90 backdrop-blur-md p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] shadow-2xl border border-secondary-brown/5 max-w-[220px] sm:max-w-xs transition-all hover:scale-105">
                <div className="flex items-center gap-3 mb-3">
                  <div className="w-8 h-8 bg-accent-gold/10 rounded-full flex items-center justify-center text-accent-gold">
                    <MapPin size={16} />
@@ -1039,7 +1024,7 @@ export default function PlaceDetails() {
       {/* Insights Section */}
       {user?.role !== 'admin' && (
         <div className="grid lg:grid-cols-12 gap-0 border-x border-b border-secondary-brown/10 bg-header-beige/10">
-           <div className="lg:col-span-12 p-12 lg:p-32 space-y-24">
+           <div className="lg:col-span-12 p-6 sm:p-12 lg:p-32 space-y-12 sm:space-y-24">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-12">
                  <div className="space-y-4">
                     <div className="flex items-center gap-4 text-accent-gold font-extrabold uppercase tracking-[0.5em] text-[10px]">
@@ -1148,7 +1133,7 @@ export default function PlaceDetails() {
       )}
 
       <div className="grid lg:grid-cols-12 gap-0 border-x border-b border-secondary-brown/10">
-         <div className="lg:col-span-12 p-12 lg:p-32 space-y-20 bg-white">
+         <div className="lg:col-span-12 p-6 sm:p-12 lg:p-32 space-y-12 sm:space-y-20 bg-white">
             {user?.role !== 'admin' ? (
               <>
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-12 border-b border-secondary-brown/5 pb-20">
@@ -1164,13 +1149,13 @@ export default function PlaceDetails() {
 
                 <div className="space-y-px">
                    {/* New Comment Input */}
-                   <div className="p-12 lg:p-20 bg-header-beige/30 flex flex-col lg:flex-row gap-16 border-b-2 border-secondary-brown/10 rounded-t-[3rem]">
+                   <div className="p-6 sm:p-12 lg:p-20 bg-header-beige/30 flex flex-col lg:flex-row gap-8 sm:gap-16 border-b-2 border-secondary-brown/10 rounded-t-[2rem] sm:rounded-t-[3rem]">
                       <div className="lg:w-1/3 space-y-6">
                         <h4 className="text-3xl font-serif italic text-secondary-brown">Share your <br /> Narrative.</h4>
                         <p className="text-xs font-extrabold text-secondary-brown/40 uppercase leading-relaxed tracking-widest">
                            Perspektif Anda penting. Tambahkan ke arsip keheningan estetika.
                         </p>
-                         <div className="flex gap-2 pt-4">
+                         <div className="flex gap-2 pt-4 hidden">
                           {[1,2,3,4,5].map(i => (
                             <button key={i} onClick={() => setNewRating(i)} className={`transition-all bg-transparent border-none cursor-pointer ${i <= newRating ? "text-accent-gold" : "text-secondary-brown/10"}`}>
                               <Star size={24} fill={i <= newRating ? "currentColor" : "none"} />
@@ -1187,44 +1172,7 @@ export default function PlaceDetails() {
                         />
 
                         <div className="flex flex-wrap gap-6 items-end">
-                          <div className="relative group">
-                             {newImage ? (
-                               <div className="relative w-40 h-40 rounded-3xl overflow-hidden shadow-xl ring-4 ring-accent-gold/20">
-                                 <img src={newImage} className="w-full h-full object-cover" alt="Artifact preview" />
-                                 <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity gap-2">
-                                    <button 
-                                      onClick={() => setImageToEdit(newImage)}
-                                      className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-full backdrop-blur-md border-none cursor-pointer"
-                                    >
-                                      <Crop size={16} />
-                                    </button>
-                                    <button 
-                                      onClick={() => setNewImage(null)}
-                                      className="p-2 bg-red-500/50 hover:bg-red-500 text-white rounded-full backdrop-blur-md border-none cursor-pointer"
-                                    >
-                                      <ThumbsUp size={16} className="rotate-180" />
-                                    </button>
-                                 </div>
-                               </div>
-                             ) : (
-                               <button 
-                                 onClick={() => fileInputRef.current?.click()}
-                                 className="w-40 h-40 rounded-3xl bg-white border-4 border-dashed border-secondary-brown/10 flex flex-col items-center justify-center gap-3 text-secondary-brown/20 hover:text-accent-gold hover:border-accent-gold transition-all group-hover:scale-105 border-none cursor-pointer"
-                               >
-                                 <Camera size={32} />
-                                 <span className="text-[10px] font-black uppercase tracking-widest">Add Media</span>
-                               </button>
-                             )}
-                             <input 
-                               type="file" 
-                               ref={fileInputRef} 
-                               className="hidden" 
-                               accept="image/*" 
-                               onChange={handleFileChange} 
-                             />
-                          </div>
-
-                          <button onClick={handleSendReview} disabled={submitting} className="group bg-secondary-brown text-white px-16 py-8 font-extrabold uppercase text-xs tracking-[0.5em] hover:bg-black transition-all flex items-center gap-4 rounded-full shadow-lg cursor-pointer h-20">
+                          <button onClick={handleSendReview} disabled={submitting} className="group bg-secondary-brown text-[#fff] px-16 py-8 font-extrabold uppercase text-xs tracking-[0.5em] hover:bg-black transition-all flex items-center gap-4 rounded-full shadow-lg cursor-pointer h-20 border-none">
                              {submitting ? "Mengirim..." : "Kirim Artefak"} <Send size={16} className="group-hover:translate-x-2 transition-transform" />
                           </button>
                         </div>
@@ -1248,7 +1196,7 @@ export default function PlaceDetails() {
                             </div>
                           </div>
                           <div className="md:w-3/4 space-y-8">
-                             <div className="flex gap-1">
+                             <div className="flex gap-1 hidden">
                                {[1,2,3,4,5].map(i => (
                                  <Star key={i} className={i <= review.rating ? "text-accent-gold fill-accent-gold" : "text-secondary-brown/5"} size={14} />
                                ))}
@@ -1262,7 +1210,7 @@ export default function PlaceDetails() {
                                </div>
                              )}
                              <div className="flex items-center gap-12 pt-6">
-                                <button className="flex items-center gap-3 text-[10px] font-extrabold uppercase tracking-widest text-secondary-brown/30 hover:text-accent-gold transition-all bg-transparent border-none cursor-pointer">
+                                <button className="flex items-center gap-3 text-[10px] font-extrabold uppercase tracking-widest text-secondary-brown/30 hover:text-secondary-brown transition-all bg-transparent border-none cursor-pointer">
                                    <ThumbsUp size={16} /> {review.likes || 0} Appreciations
                                 </button>
                              </div>

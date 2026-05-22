@@ -210,10 +210,6 @@ function UserDashboard() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishFeedback, setPublishFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
-  // Smart Search Instant Preview
-  const [smartResults, setSmartResults] = useState<any[] | null>(null);
-  const [smartResultTitle, setSmartResultTitle] = useState("");
-
   const navigate = useNavigate();
   const { user } = useAuth();
   
@@ -413,27 +409,6 @@ function UserDashboard() {
   const handleSmartSearch = async () => {
     if (!aiInput.trim()) return;
     setIsSearching(true);
-    
-    try {
-      // Try to get instant preview results via smart search API
-      const result = await geminiService.smartSearch(
-        aiInput,
-        userLocation?.lat,
-        userLocation?.lng
-      );
-      
-      if (result && result.places && result.places.length > 0) {
-        setSmartResults(result.places);
-        setSmartResultTitle(result.summaryTitle || `Hasil untuk "${aiInput}"`);
-        setIsSearching(false);
-        return; // Show preview on Dashboard instead of redirecting immediately
-      }
-    } catch (err) {
-      console.error("Smart search preview failed:", err);
-    }
-    
-    // Fallback: redirect to Explore page
-    setIsSearching(false);
     navigate(`/app/explore?q=${encodeURIComponent(aiInput)}`);
   };
 
@@ -476,91 +451,6 @@ function UserDashboard() {
         </motion.div>
       </section>
 
-      {/* Posting Widget - Real File Upload */}
-      <section className="px-6 max-w-4xl mx-auto">
-         <motion.div 
-           initial={{ opacity: 0, y: 20 }}
-           animate={{ opacity: 1, y: 0 }}
-           className="bg-white p-8 sm:p-12 rounded-[3.5rem] shadow-2xl border border-primary-green/10 overflow-hidden relative"
-         >
-            <div className="absolute top-0 right-0 w-64 h-64 bg-primary-green/5 blur-[100px] rounded-full pointer-events-none" />
-            
-            <div className="max-w-2xl mx-auto space-y-10 relative">
-               <div className="space-y-4">
-                 <span className="text-[10px] font-black text-primary-green uppercase tracking-[0.5em] flex items-center gap-2 justify-center">
-                   <Zap size={14} /> Berbagi Jejak Kolektif
-                 </span>
-                 <h2 className="text-4xl font-serif italic text-secondary-brown tracking-tighter leading-none text-center">Bagikan Keseruanmu.</h2>
-                 <p className="text-secondary-brown/40 text-[10px] uppercase tracking-widest text-center font-black">Bagikan video atau foto temuanmu di sekitar sini</p>
-               </div>
-
-               <form onSubmit={handlePublishPost} className="space-y-8">
-                  <AnimatePresence>
-                    {publishFeedback && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className={`p-4 rounded-xl text-xs font-bold text-center ${
-                          publishFeedback.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600 border border-red-100'
-                        }`}
-                      >
-                        {publishFeedback.message}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 items-start">
-                     <div className="relative aspect-square rounded-[2rem] overflow-hidden bg-header-beige/30 border-2 border-dashed border-secondary-brown/10 flex flex-col items-center justify-center group/uploader hover:border-primary-green/30 transition-all cursor-pointer">
-                       {filePreview ? (
-                         postFile?.type.includes("video") ? (
-                           <video src={filePreview} className="w-full h-full object-cover" autoPlay muted loop />
-                         ) : (
-                           <img src={filePreview} className="w-full h-full object-cover" alt="Preview" />
-                         )
-                       ) : (
-                         <>
-                           <Zap size={32} className="text-secondary-brown/20 mb-4 group-hover/uploader:scale-110 transition-transform" />
-                           <p className="text-[11px] font-black text-secondary-brown/30 uppercase tracking-[0.2em] px-10 text-center">Tap untuk Unggah</p>
-                         </>
-                       )}
-                       <input 
-                         type="file" 
-                         accept="image/*,video/*"
-                         onChange={handleFileChange}
-                         className="absolute inset-0 opacity-0 cursor-pointer"
-                       />
-                       {filePreview && (
-                         <button 
-                           type="button"
-                           onClick={() => { setPostFile(null); setFilePreview(null); }}
-                           className="absolute top-4 right-4 bg-white/90 p-3 rounded-full text-red-500 shadow-xl border-none cursor-pointer hover:scale-110 transition-all"
-                         >
-                           <X size={18} />
-                         </button>
-                       )}
-                     </div>
-
-                     <div className="space-y-6">
-                        <textarea 
-                          placeholder="Apa temuan menarikmu hari ini? (pake #hashtag ya)"
-                          value={postCaption}
-                          onChange={(e) => setPostCaption(e.target.value)}
-                          className="w-full bg-header-beige/20 border-none p-6 rounded-2xl font-serif text-lg focus:outline-none ring-1 ring-secondary-brown/5 focus:ring-primary-green/30 min-h-[140px] placeholder:text-secondary-brown/20 resize-none"
-                        />
-                        <button 
-                          type="submit"
-                          disabled={!postFile || !postCaption || isPublishing}
-                          className="w-full bg-primary-green text-white py-5 rounded-2xl font-black uppercase tracking-[0.3em] shadow-xl hover:bg-secondary-brown disabled:bg-secondary-brown/10 disabled:text-secondary-brown/20 transition-all active:scale-95 border-none cursor-pointer text-[11px]"
-                        >
-                          {isPublishing ? 'Memproses...' : 'Tayangkan'}
-                        </button>
-                     </div>
-                  </div>
-               </form>
-            </div>
-         </motion.div>
-      </section>
-
       {/* User Quick Stats */}
       <section className="px-6 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -601,7 +491,7 @@ function UserDashboard() {
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent-gold/10 rounded-full text-accent-gold text-[10px] font-black uppercase tracking-[0.3em]">
               <Sparkles size={14} /> AI-Powered Navigator
             </div>
-            <h1 className="text-6xl md:text-9xl font-serif text-secondary-brown leading-[0.85] tracking-tighter">
+            <h1 className="text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-serif text-secondary-brown leading-[0.85] tracking-tighter">
               Discover <br />
               <span className="italic text-secondary-brown/60">Indo Vibes.</span>
             </h1>
@@ -635,7 +525,7 @@ function UserDashboard() {
             {["Cafe Vintage", "Taman Sepi", "Bekerja Nyaman", "Hidden Gem Viral"].map(vibe => (
               <button 
                 key={vibe}
-                onClick={() => { setAiInput(vibe); }}
+                onClick={() => setAiInput(vibe)}
                 className="px-4 py-2 rounded-full border border-secondary-brown/10 bg-white/50 text-[10px] font-bold text-secondary-brown hover:bg-secondary-brown hover:text-white transition-all cursor-pointer"
               >
                 # {vibe}
@@ -644,110 +534,6 @@ function UserDashboard() {
           </div>
         </div>
       </section>
-
-      {/* Instant Smart Search Preview Results */}
-      <AnimatePresence>
-        {smartResults && smartResults.length > 0 && (
-          <motion.section 
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="px-6 max-w-7xl mx-auto space-y-8"
-          >
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-accent-gold/20 pb-8">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-accent-gold text-[10px] font-black uppercase tracking-widest">
-                  <Sparkles size={14} className="fill-accent-gold" /> Hasil AI Discovery
-                </div>
-                <h2 className="text-4xl md:text-5xl font-serif italic text-secondary-brown tracking-tighter">{smartResultTitle || "Rekomendasi Cerdas."}</h2>
-              </div>
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => navigate(`/app/explore?q=${encodeURIComponent(aiInput)}`)}
-                  className="flex items-center gap-2 px-6 py-3 bg-secondary-brown text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all cursor-pointer border-none shadow-lg"
-                >
-                  Lihat Semua di Peta <ArrowRight size={14} />
-                </button>
-                <button 
-                  onClick={() => { setSmartResults(null); setSmartResultTitle(""); }}
-                  className="p-3 bg-secondary-brown/5 rounded-xl text-secondary-brown/40 hover:text-secondary-brown hover:bg-secondary-brown/10 transition-all cursor-pointer border-none"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {smartResults.slice(0, 6).map((place: any, idx: number) => (
-                <motion.div 
-                  key={place.id || idx}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.08 }}
-                  className="bg-white rounded-[2.5rem] border border-secondary-brown/5 overflow-hidden shadow-sm hover:shadow-xl transition-all group flex flex-col"
-                >
-                  <div className="h-44 relative overflow-hidden cursor-pointer" onClick={() => navigate(`/app/explore?q=${encodeURIComponent(aiInput)}`)}>
-                    <img 
-                      src={place.imageUrl} 
-                      className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" 
-                      alt={place.name}
-                      onError={(e) => { (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&q=80"; }}
-                    />
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-accent-gold flex items-center gap-1 shadow-sm">
-                      <Sparkles size={10} /> AI Pick
-                    </div>
-                    {place.rating > 0 && (
-                      <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full text-[10px] font-bold text-secondary-brown flex items-center gap-1 shadow-sm">
-                        <Star size={10} className="text-accent-gold fill-accent-gold" /> {place.rating}
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
-                    <div>
-                      <h3 className="text-xl font-serif italic text-secondary-brown group-hover:text-accent-gold transition-colors">{place.name}</h3>
-                      {place.insight && (
-                        <p className="text-[10px] text-accent-gold font-bold uppercase tracking-widest mb-2">{place.insight}</p>
-                      )}
-                      <p className="text-xs text-secondary-brown/40 line-clamp-2 italic">{place.description}</p>
-                      {place.whyRecommended && (
-                        <p className="text-[10px] text-primary-green font-medium mt-2 italic">"{place.whyRecommended}"</p>
-                      )}
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-1.5 text-[9px] font-black text-secondary-brown/30 uppercase tracking-widest">
-                        <MapPin size={10} /> {place.address?.split(',')[0]}
-                      </div>
-                      {/* Quick Action Buttons */}
-                      <div className="flex gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const origin = userLocation ? `${userLocation.lat},${userLocation.lng}` : '';
-                            const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${place.latitude},${place.longitude}&travelmode=driving`;
-                            window.open(mapsUrl, '_blank');
-                          }}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 bg-secondary-brown text-white rounded-xl text-[9px] font-black uppercase tracking-wider border-none cursor-pointer hover:bg-black transition-all shadow-sm active:scale-95"
-                        >
-                          <Navigation size={12} /> Navigasi
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/app/explore?q=${encodeURIComponent(aiInput)}&id=${place.id}`);
-                          }}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 bg-accent-gold/10 text-secondary-brown rounded-xl text-[9px] font-black uppercase tracking-wider border-none cursor-pointer hover:bg-accent-gold/20 transition-all active:scale-95"
-                        >
-                          <MapPin size={12} /> Di Maps
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.section>
-        )}
-      </AnimatePresence>
 
       {/* Nearby Trending Recommendations */}
       <section className="px-6 max-w-7xl mx-auto space-y-12">
@@ -803,7 +589,7 @@ function UserDashboard() {
                   </div>
                   <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
                     <div>
-                       <h3 className="text-xl font-serif italic text-secondary-brown group-hover:text-accent-gold transition-colors">{place.name}</h3>
+                       <h3 className="text-xl font-serif italic text-secondary-brown group-hover:text-black transition-colors">{place.name}</h3>
                        <p className="text-[10px] text-accent-gold font-bold uppercase tracking-widest mb-3">{place.insight}</p>
                        <p className="text-xs text-secondary-brown/40 line-clamp-2 italic">{place.description}</p>
                     </div>
@@ -869,7 +655,7 @@ function UserDashboard() {
                   </div>
                </div>
                <div className="space-y-3 px-4">
-                  <h3 className="text-3xl font-serif italic text-secondary-brown group-hover:text-accent-gold transition-colors">{place.name}</h3>
+                  <h3 className="text-3xl font-serif italic text-secondary-brown group-hover:text-black transition-colors">{place.name}</h3>
                   <p className="text-secondary-brown/40 text-sm font-medium italic">{place.address}</p>
                </div>
             </motion.div>

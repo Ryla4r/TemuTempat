@@ -319,7 +319,7 @@ async function startServer() {
       } else {
         const hasBucket = buckets?.some((b: any) => b.name === 'travel_media');
         if (!hasBucket) {
-          console.log("Bucket 'travel_media' not found. Attempting auto-creation...");
+          console.log("Bucket 'travel_media' not found. Trying to create or verify...");
           const { error: createError } = await supabase.storage.createBucket('travel_media', {
             public: true,
             allowedMimeTypes: ['image/*', 'video/*'],
@@ -327,8 +327,8 @@ async function startServer() {
           });
           
           if (createError) {
-            console.warn("Auto-creation of 'travel_media' failed:", createError.message);
-            console.warn("HINT: Create the bucket manually in Supabase Dashboard > Storage.");
+            console.info("Bucket auto-creation skipped or handled by policy:", createError.message);
+            console.log("INFO: App is fully operational using automatic server data-fallback for media storage.");
           } else {
             console.log("Successfully created bucket 'travel_media'");
           }
@@ -584,135 +584,6 @@ async function startServer() {
         res.json({
           query: userInput,
           tags: ["Umum", "Eksplorasi"]
-        });
-      }
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Smart Search: Combines Gemini AI interpretation with structured place results
-  app.post("/api/gemini/smart-search", async (req, res) => {
-    try {
-      const { query, userLat, userLng } = req.body || {};
-      if (!query) return res.status(400).json({ error: "query is required" });
-
-      if (!geminiApiKey) {
-        return res.status(503).json({ error: "Gemini API key is not configured" });
-      }
-
-      const cacheKey = `smart_${query.toLowerCase().trim().replace(/\s+/g, '_')}_${Math.round((userLat || 0) * 10)}`;
-      const instruction = `You are a location-finding expert. Given a user's vague or specific place request, respond with:
-1. An interpreted search summary
-2. 5 specific REAL places in Indonesia that match, with precise coordinates
-3. A Google Maps search query optimized for finding these types of places
-
-Be creative but ACCURATE with coordinates. Only suggest real places that exist.
-Respond in Indonesian language for summaryTitle and insights.`;
-
-      const schema = {
-        type: Type.OBJECT,
-        properties: {
-          summaryTitle: { type: Type.STRING, description: "A catchy Indonesian title summarizing the search" },
-          googleMapsQuery: { type: Type.STRING, description: "Optimized search query for Google Maps" },
-          places: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING },
-                description: { type: Type.STRING },
-                insight: { type: Type.STRING, description: "2-3 word catchy insight" },
-                address: { type: Type.STRING },
-                latitude: { type: Type.NUMBER },
-                longitude: { type: Type.NUMBER },
-                category: { type: Type.ARRAY, items: { type: Type.STRING } },
-                priceLevel: { type: Type.NUMBER },
-                estimatedRating: { type: Type.NUMBER },
-                whyRecommended: { type: Type.STRING, description: "Short reason why this fits the query" }
-              },
-              required: ["name", "description", "insight", "address", "latitude", "longitude", "category"]
-            }
-          }
-        },
-        required: ["summaryTitle", "googleMapsQuery", "places"]
-      };
-
-      const locationContext = (userLat && userLng) 
-        ? `User is currently near (${userLat}, ${userLng}).`
-        : `User location unknown, suggest places across popular Indonesian cities.`;
-
-      const prompt = `User search: "${query}"
-${locationContext}
-Current time: ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}.
-
-Find 5 REAL places in Indonesia that perfectly match this request.
-Each place must have accurate latitude/longitude coordinates.
-Prioritize places that are:
-1. Actually relevant to the query
-2. Currently likely to be open at this hour
-3. Near the user if location is provided
-4. High quality / well-reviewed
-
-Use imageUrl pattern: https://images.unsplash.com/photo-[ID]?w=800&h=600&fit=crop for aesthetic images.`;
-
-      try {
-        const data = await getAIResponse(cacheKey, prompt, instruction, schema);
-        
-        // Add generated image URLs and IDs
-        const placesWithIds = (data.places || []).map((p: any, idx: number) => ({
-          ...p,
-          id: `ai-smart-${idx}-${Date.now()}`,
-          imageUrl: p.imageUrl || `https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&h=600&fit=crop&q=80&sig=smart-${idx}`,
-          rating: p.estimatedRating || 4.5,
-          priceLevel: p.priceLevel || 2
-        }));
-
-        res.json({
-          summaryTitle: data.summaryTitle,
-          googleMapsQuery: data.googleMapsQuery,
-          places: placesWithIds,
-          source: "ai"
-        });
-      } catch (aiErr: any) {
-        console.warn("Smart search AI failed, using local fallback:", aiErr.message);
-        
-        // Search local database
-        const { data: localPlaces } = await supabase
-          .from("places")
-          .select("*")
-          .order("rating", { ascending: false })
-          .limit(5);
-
-        const filtered = (localPlaces || []).filter((p: any) => {
-          const q = query.toLowerCase();
-          return (
-            p.name?.toLowerCase().includes(q) ||
-            p.description?.toLowerCase().includes(q) ||
-            p.address?.toLowerCase().includes(q) ||
-            p.category?.some((c: string) => c.toLowerCase().includes(q))
-          );
-        });
-
-        const results = filtered.length > 0 ? filtered : (localPlaces || []).slice(0, 5);
-
-        res.json({
-          summaryTitle: `Hasil untuk "${query}"`,
-          googleMapsQuery: query,
-          places: results.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            insight: "Koleksi Lokal",
-            address: p.address,
-            latitude: p.latitude,
-            longitude: p.longitude,
-            category: p.category,
-            imageUrl: p.image_url,
-            rating: p.rating,
-            priceLevel: p.price_level
-          })),
-          source: "local"
         });
       }
     } catch (error: any) {

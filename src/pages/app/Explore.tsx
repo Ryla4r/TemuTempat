@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { Map as MapIcon, List, Navigation, Compass, Sparkles, X, Loader2, ArrowRight, AlertCircle, History, ExternalLink, MapPin } from "lucide-react";
+import { Map as MapIcon, List, Navigation, Compass, Sparkles, X, Loader2, ArrowRight, AlertCircle, History } from "lucide-react";
 import { dataService } from "../../services/dataService";
 import { geminiService } from "../../services/geminiService";
 import MapComponent from "../../components/MapComponent";
@@ -412,9 +412,21 @@ export default function Explore() {
       });
     }
 
-    // Strict relevance sorting if there's an input
-    if (aiInput.trim()) {
-      const q = aiInput.toLowerCase().trim();
+    // Strict relevance filtering and sorting if there's an input or search query
+    const searchQuery = (aiInput || aiTitle || "").toLowerCase().trim();
+    if (searchQuery) {
+      const q = searchQuery;
+      // Filter out places that are irrelevant to the search keyword
+      results = results.filter(p => {
+        const nameMatch = p.name.toLowerCase().includes(q);
+        const descMatch = p.description?.toLowerCase().includes(q);
+        const addrMatch = p.address?.toLowerCase().includes(q);
+        const categoryMatch = p.category?.some(c => c.toLowerCase().includes(q));
+        const insightMatch = (aiResults?.find(r => r.id === p.id)?.insight || "").toLowerCase().includes(q);
+        return nameMatch || descMatch || addrMatch || categoryMatch || insightMatch;
+      });
+
+      // Sort remaining places for maximum query relevance
       results = results.sort((a, b) => {
         const aName = a.name.toLowerCase();
         const bName = b.name.toLowerCase();
@@ -562,10 +574,23 @@ export default function Explore() {
         addedBy: user?.id || "00000000-0000-0000-0000-000000000000" // Use logged in user
       });
       
+      // Auto-save/bookmark for logged-in user
+      if (user?.id) {
+        await dataService.toggleBookmark(user.id, newPlace.id);
+      }
+      
+      // Refresh local places list so it's instantly populated in UI
+      const latest = await dataService.getPlaces();
+      setPlaces(Array.isArray(latest) ? latest : []);
+      
       // Auto-focus on the new place
       setSelectedPlaceId(newPlace.id);
+      
+      // Trigger a visual alert
+      alert(`Berhasil menyimpan "${newPlace.name}" ke Koleksi Tersimpan!`);
     } catch (err) {
       console.error("Failed to add place from map:", err);
+      alert("Gagal menyimpan tempat dari peta.");
     }
   };
 
@@ -722,10 +747,10 @@ export default function Explore() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row flex-1 gap-6 lg:gap-8 overflow-hidden min-h-[600px] lg:h-[78vh]">
+      <div className="flex flex-col lg:flex-row flex-1 gap-6 lg:gap-8 overflow-hidden min-h-[600px] lg:h-[78vh] relative">
         {/* Sidebar Controls - visible as full list on mobile list view, or as floating search on map view */}
-        <div className={`w-full lg:w-[420px] flex flex-col gap-4 min-h-0 ${view === "map" ? "absolute sm:static bottom-8 left-8 right-8 lg:w-96 z-50" : "flex"}`}>
-          <div className={`flex-shrink-0 bg-white/90 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-secondary-brown/5 shadow-2xl space-y-6 ${view === "map" && "lg:bg-white lg:shadow-sm"}`}>
+        <div className={`flex flex-col gap-4 min-h-0 ${view === "map" ? "absolute bottom-4 left-4 right-4 lg:static lg:w-[420px] z-40" : "w-full lg:w-[420px]"}`}>
+          <div className={`flex-shrink-0 bg-white/90 backdrop-blur-2xl p-5 sm:p-6 rounded-[2rem] sm:rounded-[2.5rem] border border-secondary-brown/5 shadow-2xl space-y-6 ${view === "map" && "lg:bg-white lg:shadow-sm"}`}>
             
             {/* AI SMART SEARCH */}
             <div className="space-y-4">
@@ -793,13 +818,13 @@ export default function Explore() {
                                    />
                                 </div>
                                 <div className="flex flex-col">
-                                   <span className="text-sm font-serif italic text-secondary-brown group-hover:text-accent-gold transition-colors">{p.name}</span>
+                                   <span className="text-sm font-serif italic text-secondary-brown group-hover:text-black transition-colors">{p.name}</span>
                                    <span className="text-[9px] text-secondary-brown/40 uppercase tracking-widest truncate max-w-[180px]">
                                       {Array.isArray(p.category) ? p.category.join(", ") : p.category || "Hidden Gem"}
                                    </span>
                                 </div>
                              </div>
-                             <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-accent-gold" />
+                             <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-secondary-brown" />
                            </div>
                         ))}
                       </div>
@@ -860,44 +885,57 @@ export default function Explore() {
             {loading ? (
               [1, 2, 3].map(i => <div key={i} className="h-24 bg-white animate-pulse rounded-2xl border border-secondary-brown/5"></div>)
             ) : filteredPlaces.length === 0 ? (
-              <div className="flex flex-col items-center justify-center p-12 text-center space-y-6">
-                <div className="w-20 h-20 bg-accent-gold/5 rounded-full flex items-center justify-center">
-                  <Sparkles size={32} className="text-accent-gold/40" />
+              (aiInput.trim() || aiTitle) ? (
+                <div className="flex flex-col items-center justify-center p-8 sm:p-12 text-center space-y-5 bg-white rounded-3xl border border-secondary-brown/10">
+                  <div className="w-16 h-16 bg-red-50 text-secondary-brown/40 rounded-full flex items-center justify-center">
+                    <X size={24} className="text-secondary-brown/60" />
+                  </div>
+                  <div className="space-y-1.5 max-w-sm">
+                    <h3 className="text-lg font-serif text-secondary-brown italic">Tempat tidak ditemukan.</h3>
+                    <p className="text-xs text-secondary-brown/50 font-medium leading-relaxed uppercase tracking-wider">
+                      Kata kunci "{aiInput || aiTitle}" tidak mencocokkan destinasi yang sesuai di dalam kurasi kami.
+                    </p>
+                  </div>
+                  <button 
+                    onClick={clearAiResults}
+                    className="px-5 py-2.5 bg-secondary-brown text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all cursor-pointer border-none"
+                  >
+                    Reset Pencarian
+                  </button>
                 </div>
-                <div className="space-y-2">
-                  <h3 className="text-lg font-serif text-secondary-brown italic">Mulai Petualanganmu.</h3>
-                  <p className="text-xs text-secondary-brown/40 font-medium leading-relaxed uppercase tracking-widest leading-loose">
-                    Gunakan fitur AI di atas untuk mencari "Vibe" atau tempat spesifik di Indonesia.
-                  </p>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-12 text-center space-y-6">
+                  <div className="w-20 h-20 bg-accent-gold/5 rounded-full flex items-center justify-center">
+                    <Sparkles size={32} className="text-accent-gold/40" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-serif text-secondary-brown italic">Mulai Petualanganmu.</h3>
+                    <p className="text-xs text-secondary-brown/40 font-medium leading-relaxed uppercase tracking-widest leading-loose">
+                      Gunakan fitur AI di atas untuk mencari "Vibe" atau tempat spesifik di Indonesia.
+                    </p>
+                  </div>
+                  <div className="pt-4 flex flex-wrap justify-center gap-2">
+                    {["Kopi Sepi", "Sunset Aesthetic", "Hutan Pinus", "Vintage Vibes"].map(tag => (
+                      <button 
+                        key={tag}
+                        onClick={() => { setAiInput(tag); handleAiSearch(tag); }}
+                        className="px-4 py-2 bg-white border border-secondary-brown/10 rounded-full text-[10px] font-black text-secondary-brown/40 uppercase tracking-widest hover:border-secondary-brown hover:text-secondary-brown transition-all cursor-pointer"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="pt-4 flex flex-wrap justify-center gap-2">
-                  {["Kopi Sepi", "Sunset Aesthetic", "Hutan Pinus", "Vintage Vibes"].map(tag => (
-                    <button 
-                      key={tag}
-                      onClick={() => { setAiInput(tag); handleAiSearch(tag); }}
-                      className="px-4 py-2 bg-white border border-secondary-brown/10 rounded-full text-[10px] font-black text-secondary-brown/40 uppercase tracking-widest hover:border-accent-gold hover:text-accent-gold transition-all cursor-pointer"
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              )
             ) : (
               filteredPlaces.map((place) => {
                 const aiRecommendation = aiResults?.find(r => r.id === place.id);
                 return (
                   <div 
                     key={place.id}
-                    onMouseEnter={() => {
-                      setSelectedPlaceId(place.id);
-                      // Focus map on this place when hovering
-                      if (view === "map" && place.latitude && place.longitude) {
-                        window.dispatchEvent(new CustomEvent('map-focus-place', {
-                          detail: { lat: place.latitude, lng: place.longitude }
-                        }));
-                      }
-                    }}
-                    className={`block p-4 rounded-[2rem] border transition-all group no-underline relative ${selectedPlaceId === place.id ? "bg-white border-accent-gold shadow-lg -translate-y-0.5" : "bg-white border-transparent shadow-sm hover:shadow-md"}`}
+                    onClick={() => handleNavigateToDetail(place)}
+                    onMouseEnter={() => setSelectedPlaceId(place.id)}
+                    className={`block p-4 rounded-[2rem] border transition-all cursor-pointer group no-underline relative ${selectedPlaceId === place.id ? "bg-white border-accent-gold shadow-lg -translate-y-0.5" : "bg-white border-transparent shadow-sm hover:shadow-md"}`}
                   >
                     {place.addedBy === "Pencarian Kolektif" && (
                       <div className="absolute top-2 right-2 bg-accent-gold/10 text-accent-gold text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-full flex items-center gap-1 shadow-sm border border-accent-gold/20 z-10">
@@ -905,7 +943,7 @@ export default function Explore() {
                         Discovery
                       </div>
                     )}
-                    <div className="flex gap-4 cursor-pointer" onClick={() => handleNavigateToDetail(place)}>
+                    <div className="flex gap-4">
                       <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 shadow-sm relative">
                         <img 
                           src={place.imageUrl} 
@@ -923,7 +961,7 @@ export default function Explore() {
                       </div>
                       <div className="flex-1 min-w-0 flex flex-col justify-center">
                         <div className="flex items-center gap-2 mb-0.5">
-                           <h4 className="font-bold text-base text-secondary-brown truncate group-hover:text-accent-gold transition-colors">{place.name}</h4>
+                           <h4 className="font-bold text-base text-secondary-brown truncate group-hover:text-black transition-colors">{place.name}</h4>
                         </div>
                         {aiRecommendation ? (
                           <p className="text-[10px] text-accent-gold font-medium leading-tight line-clamp-2 mb-1.5 italic">
@@ -932,68 +970,30 @@ export default function Explore() {
                         ) : (
                           <p className="text-xs text-secondary-brown/50 truncate mb-1.5">{place.address}</p>
                         )}
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold text-accent-gold bg-accent-gold/5 px-3 py-1 rounded-full uppercase tracking-wider">{place.rating} ★</span>
-                          {userLocation && (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[9px] font-bold text-secondary-brown/70 tabular-nums">
-                                {(() => {
-                                  const d = calculateDistance(userLocation[0], userLocation[1], place.latitude, place.longitude);
-                                  return d < 1 ? `${(d * 1000).toFixed(0)}m` : `${d.toFixed(1)}km`;
-                                })()}
-                              </span>
-                              <span className="text-[8px] font-medium text-secondary-brown/30">
-                                {(() => {
-                                  const d = calculateDistance(userLocation[0], userLocation[1], place.latitude, place.longitude);
-                                  const time = Math.round(d * 4 + 2);
-                                  return `±${time} mnt`;
-                                })()}
-                              </span>
-                            </div>
-                          )}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-accent-gold bg-accent-gold/5 px-3 py-1 rounded-full uppercase tracking-wider">{place.rating} ★</span>
+                            {userLocation && (
+                              <div className="flex flex-col">
+                                <span className="text-[9px] font-bold text-secondary-brown/70 tabular-nums">
+                                  {(() => {
+                                    const d = calculateDistance(userLocation[0], userLocation[1], place.latitude, place.longitude);
+                                    return d < 1 ? `${(d * 1000).toFixed(0)}m` : `${d.toFixed(1)}km`;
+                                  })()}
+                                </span>
+                                <span className="text-[8px] font-medium text-secondary-brown/30">
+                                  {(() => {
+                                    const d = calculateDistance(userLocation[0], userLocation[1], place.latitude, place.longitude);
+                                    const time = Math.round(d * 4 + 2); // Roughly 4 mins per km + 2 mins base
+                                    return `±${time} mnt`;
+                                  })()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-[9px] font-black text-secondary-brown/20 uppercase tracking-[0.2em] group-hover:text-black transition-colors">Detail →</span>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Quick Action Buttons */}
-                    <div className="flex gap-2 mt-3 pt-3 border-t border-secondary-brown/[0.04]">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const origin = userLocation ? `${userLocation[0]},${userLocation[1]}` : '';
-                          const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${place.latitude},${place.longitude}&travelmode=driving`;
-                          window.open(mapsUrl, '_blank');
-                        }}
-                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-secondary-brown text-white rounded-xl text-[9px] font-black uppercase tracking-wider border-none cursor-pointer hover:bg-black transition-all shadow-sm active:scale-95"
-                      >
-                        <Navigation size={12} /> Navigasi
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (place.latitude && place.longitude) {
-                            setView("map");
-                            setSelectedPlaceId(place.id);
-                            setTimeout(() => {
-                              window.dispatchEvent(new CustomEvent('map-focus-place', {
-                                detail: { lat: place.latitude, lng: place.longitude, zoom: 16 }
-                              }));
-                            }, 100);
-                          }
-                        }}
-                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-accent-gold/10 text-secondary-brown rounded-xl text-[9px] font-black uppercase tracking-wider border-none cursor-pointer hover:bg-accent-gold/20 transition-all active:scale-95"
-                      >
-                        <MapPin size={12} /> Di Maps
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleNavigateToDetail(place);
-                        }}
-                        className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-secondary-brown/10 text-secondary-brown/60 rounded-xl text-[9px] font-black uppercase tracking-wider cursor-pointer hover:border-accent-gold hover:text-accent-gold transition-all active:scale-95"
-                      >
-                        <ExternalLink size={12} />
-                      </button>
                     </div>
                   </div>
                 );
@@ -1065,7 +1065,7 @@ export default function Explore() {
                       <div className="flex-1 flex flex-col justify-between py-2">
                         <div>
                           <div className="flex justify-between items-start mb-3">
-                            <h3 className="text-2xl font-serif text-secondary-brown group-hover:text-accent-gold transition-colors">{place.name}</h3>
+                            <h3 className="text-2xl font-serif text-secondary-brown group-hover:text-black transition-colors">{place.name}</h3>
                             <div className="flex items-center gap-1">
                               <span className="text-lg font-bold text-accent-gold">★ {place.rating}</span>
                             </div>

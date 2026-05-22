@@ -163,35 +163,5 @@ export const geminiService = {
       console.error("Gemini nearby trending error:", error);
       return MOCK_RECOMMENDATIONS;
     }
-  },
-
-  async smartSearch(query: string, userLat?: number, userLng?: number) {
-    try {
-      const response = await fetch("/api/gemini/smart-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, userLat, userLng }),
-      });
-      
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("text/html")) {
-        throw new Error("Received HTML instead of JSON from /api/gemini/smart-search");
-      }
-      
-      if (!response.ok) {
-        if (response.status === 429) throw new Error("QUOTA_EXHAUSTED");
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return await response.json();
-    } catch (error: any) {
-      if (error.message === "QUOTA_EXHAUSTED") throw error;
-      console.error("Smart search error:", error);
-      return {
-        summaryTitle: `Hasil untuk "${query}"`,
-        googleMapsQuery: query,
-        places: MOCK_RECOMMENDATIONS.recommendations,
-        source: "fallback"
-      };
-    }
   }
 };

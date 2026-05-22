@@ -39,6 +39,19 @@ export default function Community() {
   const [siteFeedback, setSiteFeedback] = useState("");
   const [isSiteFeedbackSubmitted, setIsSiteFeedbackSubmitted] = useState(false);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+
+  // Website Reviews/Ratings State
+  const [websiteScores, setWebsiteScores] = useState<any[]>([]);
+  const [websiteAvg, setWebsiteAvg] = useState<number>(4.8);
+  const [loadingWebsiteScores, setLoadingWebsiteScores] = useState<boolean>(false);
+  const [reviewSort, setReviewSort] = useState<"terbaru" | "terlama" | "tertinggi">("terbaru");
+
+  // Website Rating Creation State
+  const [userRating, setUserRating] = useState<number>(5);
+  const [userRatingHover, setUserRatingHover] = useState<number | null>(null);
+  const [userReviewText, setUserReviewText] = useState<string>("");
+  const [isSubmittingRating, setIsSubmittingRating] = useState<boolean>(false);
+  const [ratingError, setRatingError] = useState<string | null>(null);
   
   // Admin Management State
   const [editingTrendingId, setEditingTrendingId] = useState<string | null>(null);

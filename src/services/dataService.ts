@@ -1,5 +1,6 @@
 import { Place, Review } from "../types";
 import { io } from "socket.io-client";
+import { getUnsplashImage } from "./unsplashService";
 
 // Connect to the local server
 const socket = io();
@@ -289,10 +290,38 @@ export const dataService = {
   },
 
   async addPlace(place: Omit<Place, "id" | "createdAt" | "rating">) {
+    let finalImageUrl = place.imageUrl || '';
+    
+    // Check if the image is empty or a generic mock/default placeholder link, and fetch from Unsplash
+    if (
+      !finalImageUrl || 
+      finalImageUrl.includes("images.unsplash.com/photo-1517248135467") ||
+      finalImageUrl.includes("images.unsplash.com/photo-1542314831") ||
+      finalImageUrl.includes("images.unsplash.com/photo-1554118811") ||
+      finalImageUrl.includes("unsplash.com/photo-1501339847") ||
+      finalImageUrl.includes("unsplash.com/photo-1507842217") ||
+      finalImageUrl.includes("unsplash.com/photo-1507525428") ||
+      finalImageUrl.includes("images.unsplash.com/photo-1555396273") ||
+      finalImageUrl.includes("images.unsplash.com/photo-15821423069") ||
+      finalImageUrl.includes("api.dicebear.com")
+    ) {
+      try {
+        const cat = Array.isArray(place.category) ? place.category[0] : (place.category || "General");
+        const unsplashUrl = await getUnsplashImage(place.name, cat);
+        if (unsplashUrl) {
+          finalImageUrl = unsplashUrl;
+        }
+      } catch (e) {
+        console.warn("Unsplash dynamic fetch in dataService failed, using default fallback.", e);
+      }
+    }
+
+    const placeWithUnsplash = { ...place, imageUrl: finalImageUrl };
+
     const res = await robustFetch("/api/places", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(place)
+      body: JSON.stringify(placeWithUnsplash)
     });
     const data = await res.json();
     if (!res.ok) {

@@ -169,7 +169,7 @@ export default function PlaceManagementTab() {
                 className="h-full bg-bg-cream rounded-[3rem] border border-bg-deep-brown/5 shadow-xl flex flex-col overflow-hidden"
               >
                 <div className="overflow-x-auto p-4 custom-scrollbar">
-                  <table className="w-full text-left border-separate border-spacing-y-4 px-4">
+                  <table className="w-full text-left border-separate border-spacing-y-4 px-4 min-w-[800px]">
                     <thead>
                       <tr className="text-[10px] font-black text-bg-deep-brown/20 uppercase tracking-[0.3em]">
                         <th className="px-6 py-2">Destinasi</th>

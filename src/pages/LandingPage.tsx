@@ -7,11 +7,14 @@ import { useAuth } from "../context/AuthContext";
 import { feedbackService, SiteReview } from "../services/feedbackService";
 import { dataService } from "../services/dataService";
 import { Review } from "../types";
+import { getUnsplashImage } from "../services/unsplashService";
 
 export default function LandingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [reviews, setReviews] = useState<SiteReview[]>([]);
+  const [placeReviews, setPlaceReviews] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<"places" | "website">("places");
   const [communityPosts, setCommunityPosts] = useState<any[]>([]);
   const [featuredPlaces, setFeaturedPlaces] = useState<any[]>([]);
   const [averageRating, setAverageRating] = useState(4.8);
@@ -19,23 +22,61 @@ export default function LandingPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [places, posts, ratingAvg, siteRatings] = await Promise.all([
+        const [places, posts, ratingAvg, siteRatings, rawPlaceReviews] = await Promise.all([
           dataService.getPlaces(),
           dataService.getPosts(),
           dataService.getAverageWebsiteRating(),
-          dataService.getWebsiteRatings()
+          dataService.getWebsiteRatings(),
+          dataService.getReviews()
         ]);
         
-        setFeaturedPlaces(places.slice(0, 4));
+        // Dynamic Unsplash image enrichment for showcased places
+        const enhancedPlaces = await Promise.all(
+          places.slice(0, 4).map(async (place: any) => {
+            try {
+              const url = await getUnsplashImage(place.name, place.category);
+              return { ...place, imageUrl: url || place.imageUrl };
+            } catch (err) {
+              return place;
+            }
+          })
+        );
+        
+        setFeaturedPlaces(enhancedPlaces);
         setCommunityPosts(posts.slice(0, 6));
-        setAverageRating(ratingAvg || 4.8);
+        
         setReviews(siteRatings.map((r: any) => ({
           id: r.id,
-          userName: r.users?.name || 'Explorer',
+          userName: r.user_name || r.users?.name || 'Explorer',
           rating: r.rating,
           comment: r.review_text,
           date: r.created_at
         })));
+
+        // Map place reviews with their corresponding place name
+        const mappedPlaceReviews = rawPlaceReviews.map((r: any) => {
+          const matchedPlace = places.find((p: any) => p.id === r.placeId);
+          return {
+            id: r.id,
+            userName: r.userName || 'Explorer',
+            rating: r.rating,
+            comment: r.comment,
+            targetName: matchedPlace ? matchedPlace.name : "Tempat Rahasia",
+            targetLink: matchedPlace ? `/app/place/${matchedPlace.id}` : "/app",
+            date: r.createdAt
+          };
+        });
+        setPlaceReviews(mappedPlaceReviews);
+
+        // Combined average calculation
+        const allRatings = [
+          ...siteRatings.map((r: any) => r.rating),
+          ...rawPlaceReviews.map((r: any) => r.rating)
+        ];
+        const combinedAvg = allRatings.length > 0
+          ? allRatings.reduce((sum, val) => sum + val, 0) / allRatings.length
+          : ratingAvg || 4.8;
+        setAverageRating(combinedAvg);
       } catch (err) {
         console.error("Gagal ambil data:", err);
       }
@@ -57,242 +98,271 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-bg-cream selection:bg-accent-gold selection:text-secondary-brown font-sans overflow-x-hidden text-secondary-brown">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 w-full bg-bg-cream/80 backdrop-blur-xl border-b border-secondary-brown/10 px-10 py-5 z-50 flex items-center justify-between shadow-sm">
-        <Link className="flex items-center gap-4 group no-underline hover:no-underline focus:no-underline focus:outline-none" to="/">
-          <div className="w-12 h-12 bg-accent-gold rounded-xl text-white flex items-center justify-center font-serif text-2xl shadow-lg transform group-hover:rotate-6 transition-transform">T</div>
-          <span className="font-serif text-5xl tracking-tight text-secondary-brown italic">TemuTempat</span>
-        </Link>
-        <div className="flex gap-6">
-          {user ? (
-            <Link to="/app" className="bg-[#FFB6C1] text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all shadow-xl no-underline hover:no-underline focus:no-underline focus:outline-none">
-              Explore
-            </Link>
-          ) : (
-            <Link to="/login" className="bg-secondary-brown text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all shadow-xl no-underline hover:no-underline focus:no-underline focus:outline-none">
-              Sign In
-            </Link>
-          )}
+      <nav className="fixed top-0 left-0 w-full bg-bg-cream/80 backdrop-blur-xl border-b border-secondary-brown/10 px-4 sm:px-10 py-4 md:py-5 z-50 shadow-sm transition-all">
+        <div className="max-w-7xl mx-auto flex items-center justify-between w-full">
+          <Link className="flex items-center gap-3 sm:gap-4 group no-underline hover:no-underline focus:no-underline focus:outline-none" to="/">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-secondary-brown text-white rounded-xl flex items-center justify-center font-serif text-xl sm:text-2xl shadow-md transform group-hover:rotate-6 transition-transform">T</div>
+            <span className="font-serif text-3xl sm:text-4xl lg:text-5xl tracking-tight text-secondary-brown italic">TemuTempat</span>
+          </Link>
+          <div className="flex gap-4 sm:gap-6">
+            {user ? (
+              <Link to="/app" className="bg-secondary-brown text-white px-5 sm:px-8 py-2.5 sm:py-3 rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-widest hover:bg-black transition-all shadow-md no-underline">
+                Explore
+              </Link>
+            ) : (
+              <Link to="/login" className="bg-secondary-brown text-white px-5 sm:px-8 py-2.5 sm:py-3 rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-widest hover:bg-black transition-all shadow-md no-underline">
+                Sign In
+              </Link>
+            )}
+          </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-60 pb-32 px-10 bg-bg-cream">
+      <section className="pt-36 sm:pt-48 lg:pt-56 pb-20 lg:pb-32 px-4 sm:px-10 bg-bg-cream relative">
         <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-12 gap-16 items-center">
-            <div className="lg:col-span-7 space-y-12">
+          <div className="grid lg:grid-cols-12 gap-10 lg:gap-16 items-center">
+            <div className="lg:col-span-7 space-y-8 sm:space-y-12">
               <motion.div
-                initial={{ opacity: 0, y: 40 }}
+                initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
               >
-                <div className="inline-flex items-center gap-4 px-6 py-2 bg-accent-gold/20 text-secondary-brown rounded-full text-[10px] font-extrabold uppercase tracking-[0.3em] mb-10 border border-accent-gold/10">
-                  <Zap size={14} fill="currentColor" /> Live Community Feed
+                <div className="inline-flex items-center gap-2.5 px-4 py-1.5 bg-secondary-brown/5 text-secondary-brown rounded-full text-[9px] font-extrabold uppercase tracking-[0.25em] mb-6 sm:mb-10 border border-secondary-brown/10">
+                  <Zap size={12} className="text-secondary-brown fill-secondary-brown" /> Temukan Sudut Tersembunyi
                 </div>
-                <h1 className="text-7xl lg:text-[10rem] font-serif text-secondary-brown mb-10 leading-[0.85] tracking-tight">
+                <h1 className="text-5xl sm:text-7xl md:text-8xl lg:text-[8rem] xl:text-[9.5rem] font-serif text-secondary-brown mb-6 sm:mb-10 leading-[0.9] tracking-tight">
                   Escape the <br />
-                  <span className="text-accent-gold italic">Ordinary.</span>
+                  <span className="text-secondary-brown italic">Ordinary.</span>
                 </h1>
-                <p className="text-2xl text-secondary-brown/80 font-medium leading-relaxed max-w-xl border-l-4 border-accent-gold pl-8 italic">
-                  Temukan permata artistik tersembunyi dan tempat perlindungan yang belum tersentuh oleh hiruk-pikuk kota. Dipandu oleh AI, dikurasi dengan jiwa.
+                <p className="text-lg sm:text-2xl text-secondary-brown/80 font-medium leading-relaxed max-w-xl border-l-4 border-secondary-brown pl-6 sm:pl-8 italic my-6 sm:my-8">
+                  Temukan tempat perlindungan artistik, kopi senja tersembunyi, dan pesona alam yang belum terjamah. Dirancang untuk pencari keindahan sejati.
                 </p>
-                <div className="flex gap-6 pt-10">
-                  <Link to={user ? "/app" : "/login"} className="group relative bg-secondary-brown text-white px-12 py-6 rounded-none font-extrabold text-xl transition-all hover:bg-black shadow-2xl no-underline hover:no-underline focus:no-underline focus:outline-none">
-                    <span className="relative z-10 flex items-center gap-4">{user ? "Ayo Eksplor" : "Start Curating"} <ArrowRight size={24} /></span>
-                    <div className="absolute inset-0 bg-accent-gold translate-x-2 translate-y-2 -z-10 group-hover:translate-x-0 group-hover:translate-y-0 transition-transform"></div>
+                <div className="flex gap-4 sm:gap-6 pt-4 sm:pt-6">
+                  <Link to={user ? "/app" : "/login"} className="group relative bg-secondary-brown text-white px-8 sm:px-12 py-4 sm:py-6 rounded-none font-extrabold text-lg sm:text-xl transition-all hover:bg-black shadow-lg no-underline">
+                    <span className="relative z-10 flex items-center gap-3 sm:gap-4">{user ? "Mulai Eksplor" : "Bergabung Sekarang"} <ArrowRight size={20} /></span>
+                    <div className="absolute inset-0 bg-accent-gold translate-x-1.5 translate-y-1.5 -z-10 group-hover:translate-x-0 group-hover:translate-y-0 transition-transform"></div>
                   </Link>
                 </div>
               </motion.div>
             </div>
             
-            <div className="lg:col-span-5 relative mt-20 lg:mt-0">
+            <div className="lg:col-span-5 relative mt-12 lg:mt-0">
               <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 1.2, ease: "easeOut" }}
                 className="relative z-10"
               >
-                <div className="aspect-[4/5] overflow-hidden bg-white p-4 shadow-[-40px_40px_100px_-20px_rgba(0,0,0,0.1)]">
+                <div className="aspect-[4/5] overflow-hidden bg-white p-3 sm:p-4 shadow-xl border border-secondary-brown/10">
                   <img 
                     src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&q=80" 
                     alt="Sanctuary" 
-                    className="w-full h-full object-cover grayscale-[20%] hover:grayscale-0 transition-all duration-1000"
+                    className="w-full h-full object-cover grayscale-[15%] hover:grayscale-0 transition-all duration-[1200ms]"
                   />
                 </div>
                 
                 <motion.div
-                  animate={{ y: [0, -15, 0] }}
-                  transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute -bottom-12 -left-12 bg-white p-10 text-secondary-brown shadow-2xl max-w-xs border border-secondary-brown/5"
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute -bottom-8 -left-4 sm:-bottom-12 sm:-left-12 bg-white p-6 sm:p-10 text-secondary-brown shadow-2xl max-w-[260px] sm:max-w-xs border border-secondary-brown/5"
                 >
-                  <p className="font-serif text-3xl mb-6 italic leading-tight">"Tempat berlindung bagi mereka yang mencari keindahan puitis."</p>
-                  <p className="text-[10px] font-extrabold uppercase tracking-widest opacity-40">— Sang Kurator</p>
+                  <p className="font-serif text-xl sm:text-3xl mb-4 sm:mb-6 italic leading-tight">"Keindahan sesungguhnya terletak di tempat-tempat yang sunyi."</p>
+                  <p className="text-[9px] font-extrabold uppercase tracking-widest opacity-40">— Sang Penjelajah</p>
                 </motion.div>
               </motion.div>
 
-              
-              {/* Abstract Accents */}
-              <div className="absolute -top-20 -right-20 w-80 h-80 bg-accent-gold/10 rounded-full blur-[120px]"></div>
-              <div className="absolute top-1/2 -left-20 w-64 h-64 bg-primary-green/5 rounded-full blur-[100px]"></div>
+              {/* Decorative Blur */}
+              <div className="absolute -top-10 -right-10 w-64 h-64 sm:w-80 sm:h-80 bg-accent-gold/20 rounded-full blur-[80px] sm:blur-[120px]"></div>
+              <div className="absolute top-1/2 -left-10 w-48 h-48 sm:w-64 sm:h-64 bg-secondary-brown/5 rounded-full blur-[70px] sm:blur-[100px]"></div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Community Voice Section (Moved to top area) */}
-      <section className="py-40 bg-bg-cream relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-1/2 h-full bg-accent-gold/5 -skew-x-12 translate-x-20"></div>
-        <div className="max-w-7xl mx-auto px-10 relative z-10">
-          <div className="flex flex-col lg:flex-row items-end justify-between gap-12 mb-24">
-            <div className="space-y-6">
-              <div className="inline-flex items-center gap-3 text-accent-gold font-extrabold uppercase tracking-[0.4em] text-[10px]">
-                <Star size={14} className="fill-accent-gold" /> Art of Discovery
+      {/* Website Ratings & Testimonials (Prominent and Repositioned) */}
+      <section className="py-20 sm:py-32 bg-white relative overflow-hidden border-t border-b border-secondary-brown/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-10">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 sm:mb-16 gap-8 text-center md:text-left border-b border-secondary-brown/5 pb-12 sm:pb-16">
+            <div className="space-y-3 sm:space-y-4">
+              <div className="inline-flex items-center gap-2 text-secondary-brown/50 font-extrabold uppercase tracking-[0.3em] text-[10px]">
+                <ShieldCheck size={14} className="text-secondary-brown opacity-60" /> Ulasan Pengguna & Kurator
               </div>
-              <h2 className="text-6xl md:text-8xl font-serif text-secondary-brown leading-[0.85] tracking-tighter">
-                Galeri <br />
-                <span className="italic text-accent-gold opacity-90">Hidden Gems.</span>
-              </h2>
-            </div>
-            <p className="text-xl text-secondary-brown/40 max-w-sm font-medium italic border-l-2 border-accent-gold pl-6">
-              "Sebuah ekosistem digital untuk para penikmat sunyi dan pemburu estetik."
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-            {communityPosts.length > 0 ? communityPosts.map((post, idx) => (
-              <motion.div
-                key={post.id || idx}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                className="group relative h-[500px] rounded-[3rem] overflow-hidden shadow-2xl bg-white border border-secondary-brown/5"
-              >
-                {post.media_url?.toLowerCase().match(/\.(mp4|webm|ogg)$/) ? (
-                  <video src={post.media_url} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-[2s]" autoPlay muted loop />
-                ) : (
-                  <img src={post.media_url} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 group-hover:scale-110 transition-all duration-[2s]" alt="discovery" />
-                )}
-                
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-10 text-white">
-                  <p className="font-serif text-2xl italic mb-4 line-clamp-2">"{post.caption}"</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white/90">{post.username}</span>
-                    <Link to="/login" className="px-5 py-2 bg-white/20 backdrop-blur-md rounded-full text-[9px] font-black text-white hover:bg-white hover:text-secondary-brown transition-colors uppercase tracking-[0.2em] no-underline">Lihat Detail</Link>
-                  </div>
-                </div>
-              </motion.div>
-            )) : (
-              <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-20 bg-white/50 rounded-[3rem] border-2 border-dashed border-secondary-brown/5">
-                <p className="text-[10px] font-black uppercase tracking-[0.5em] text-secondary-brown/20 italic">Gelombang belum merekam jejak hari ini...</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Website Ratings & Testimonials (Refined Layout) */}
-      <section className="py-40 bg-white relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-10">
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-24 gap-12 text-center md:text-left border-b border-secondary-brown/5 pb-16">
-            <div className="space-y-4">
-               <div className="inline-flex items-center gap-3 text-secondary-brown/40 font-extrabold uppercase tracking-[0.4em] text-[9px]">
-                <ShieldCheck size={12} className="opacity-30" /> Verified Impressions
-              </div>
-              <h2 className="text-5xl md:text-7xl font-serif text-secondary-brown leading-none tracking-tighter italic">
-                Diskusi Kolektif.
+              <h2 className="text-4xl sm:text-6xl lg:text-7xl font-serif text-secondary-brown leading-none tracking-tighter italic">
+                Suara Komunitas.
               </h2>
             </div>
             
-            <div className="flex flex-col md:items-end gap-1">
-              <div className="flex items-center justify-center md:justify-end gap-5">
-                <span className="text-6xl md:text-8xl font-serif text-accent-gold leading-none italic">{averageRating.toFixed(1)}</span>
-                <div className="flex gap-1">
-                  {[1,2,3,4,5].map(s => <Star key={s} size={14} className="fill-accent-gold text-accent-gold opacity-50" />)}
+            <div className="flex flex-col md:items-end gap-1.5">
+              <div className="flex items-center justify-center md:justify-end gap-4">
+                <span className="text-5xl sm:text-8xl font-serif text-secondary-brown leading-none italic">{averageRating.toFixed(1)}</span>
+                <div className="flex flex-col items-start">
+                  <div className="flex gap-0.5">
+                    {[1, 2, 3, 4, 5].map(s => (
+                      <Star key={s} size={16} className={`${s <= Math.round(averageRating) ? "fill-secondary-brown text-secondary-brown" : "text-secondary-brown/20"} `} />
+                    ))}
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#FFB6C1] mt-1.5">Rating Sangat Baik</p>
                 </div>
               </div>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-secondary-brown/20 md:text-right">
-                Global Score Berdasarkan {reviews.length} Kurator
+              <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.25em] text-secondary-brown/30 md:text-right">
+                Berdasarkan Ulasan {reviews.length + placeReviews.length} Teman Perjalanan
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-            {reviews.length > 0 ? reviews.map((review, idx) => (
-              <motion.div
-                key={review.id}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                className="bg-bg-cream/40 p-12 rounded-[4rem] border border-secondary-brown/5 flex flex-col justify-between group hover:bg-white hover:shadow-2xl transition-all duration-700 h-full border-b-[6px] border-b-primary-green/20"
-              >
-                <div className="space-y-10">
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star 
-                        key={star} 
-                        size={14} 
-                        className={star <= review.rating ? "text-accent-gold fill-accent-gold" : "text-secondary-brown/10"} 
-                      />
-                    ))}
-                  </div>
-                  <p className="text-2xl font-serif text-secondary-brown leading-relaxed italic pr-4">
-                    "{review.comment}"
-                  </p>
+          {/* Tab Switcher for Reviews */}
+          <div className="flex justify-center md:justify-start gap-4 mb-12 border-b border-secondary-brown/5 pb-6">
+            <button
+              onClick={() => setActiveTab("places")}
+              className={`pb-3 border-b-2 font-serif text-sm italic transition-all duration-300 px-4 cursor-pointer focus:outline-none ${activeTab === "places" ? "border-[#FFB6C1] text-secondary-brown font-semibold scale-105" : "border-transparent text-secondary-brown/40 hover:text-secondary-brown/60"}`}
+            >
+              Ulasan Tempat (Google Maps Style)
+            </button>
+            <button
+              onClick={() => setActiveTab("website")}
+              className={`pb-3 border-b-2 font-serif text-sm italic transition-all duration-300 px-4 cursor-pointer focus:outline-none ${activeTab === "website" ? "border-[#FFB6C1] text-secondary-brown font-semibold scale-105" : "border-transparent text-secondary-brown/40 hover:text-secondary-brown/60"}`}
+            >
+              Ulasan Platform
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 sm:gap-10">
+            {activeTab === "places" ? (
+              placeReviews.length > 0 ? (
+                placeReviews.map((review, idx) => (
+                  <motion.div
+                    key={review.id || idx}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: idx * 0.1 }}
+                    className="bg-bg-cream/40 p-8 sm:p-12 rounded-[2.5rem] sm:rounded-[3rem] border border-secondary-brown/10 flex flex-col justify-between group hover:bg-neutral-50 hover:shadow-xl transition-all duration-500 h-full border-b-[5px] border-b-[#FFB6C1]/30"
+                  >
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="flex justify-between items-start">
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star 
+                              key={star} 
+                              size={14} 
+                              className={star <= review.rating ? "text-secondary-brown fill-secondary-brown" : "text-secondary-brown/10"} 
+                            />
+                          ))}
+                        </div>
+                        <span className="text-[8px] font-black uppercase tracking-widest text-[#FFB6C1] bg-[#FFB6C1]/5 px-2.5 py-1 rounded-full">
+                          Google Review
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-xl sm:text-2xl font-serif text-secondary-brown/90 leading-relaxed italic pr-2 mb-4">
+                          "{review.comment}"
+                        </p>
+                        <span className="text-[10px] font-bold text-secondary-brown/50 uppercase tracking-wider block">
+                          Mengulas: <Link to={review.targetLink} className="underline hover:text-[#FFB6C1] font-serif italic capitalize text-secondary-brown">{review.targetName}</Link>
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-secondary-brown/10 flex items-center gap-4">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center font-serif text-secondary-brown text-xl shadow-md border border-secondary-brown/5 group-hover:bg-[#FFB6C1] group-hover:text-white transition-colors duration-300 uppercase font-bold">
+                        {review.userName ? review.userName.charAt(0) : "E"}
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-secondary-brown uppercase tracking-[0.15em]">{review.userName || 'Explorer'}</h4>
+                        <p className="text-[9px] font-bold text-secondary-brown/40 uppercase tracking-widest mt-0.5">Penemu Lokal Terverifikasi</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))
+              ) : (
+                <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 sm:py-20 bg-bg-cream/20 rounded-[3rem] border border-dashed border-secondary-brown/15">
+                  <p className="text-xs font-black uppercase tracking-[0.3em] text-secondary-brown/30 italic">Belum ada ulasan tempat dari Google Maps style...</p>
                 </div>
-                <div className="mt-12 pt-10 border-t border-secondary-brown/10 flex items-center gap-5">
-                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center font-serif text-secondary-brown text-2xl shadow-xl border border-secondary-brown/5 group-hover:bg-primary-green group-hover:text-white transition-colors duration-500 uppercase">
-                    {review.userName.charAt(0)}
+              )
+            ) : (
+              reviews.length > 0 ? reviews.map((review, idx) => (
+                <motion.div
+                  key={review.id || idx}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.1 }}
+                  className="bg-bg-cream/40 p-8 sm:p-12 rounded-[2.5rem] sm:rounded-[3rem] border border-secondary-brown/10 flex flex-col justify-between group hover:bg-neutral-50 hover:shadow-xl transition-all duration-500 h-full border-b-[5px] border-b-secondary-brown/20"
+                >
+                  <div className="space-y-6 sm:space-y-8">
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star 
+                          key={star} 
+                          size={14} 
+                          className={star <= review.rating ? "text-secondary-brown fill-secondary-brown" : "text-secondary-brown/10"} 
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xl sm:text-2xl font-serif text-secondary-brown/90 leading-relaxed italic pr-2">
+                      "{review.comment}"
+                    </p>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-black text-secondary-brown uppercase tracking-[0.2em]">{review.userName}</h4>
-                    <p className="text-[9px] font-bold text-primary-green uppercase tracking-widest mt-1">Verified Member</p>
+                  <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-secondary-brown/10 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center font-serif text-secondary-brown text-xl shadow-md border border-secondary-brown/5 group-hover:bg-secondary-brown group-hover:text-white transition-colors duration-300 uppercase font-bold">
+                      {review.userName ? review.userName.charAt(0) : "E"}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-secondary-brown uppercase tracking-[0.15em]">{review.userName || 'Explorer'}</h4>
+                      <p className="text-[9px] font-bold text-secondary-brown/40 uppercase tracking-widest mt-0.5">Anggota Terverifikasi</p>
+                    </div>
                   </div>
+                </motion.div>
+              )) : (
+                <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 sm:py-20 bg-bg-cream/20 rounded-[3rem] border border-dashed border-secondary-brown/15">
+                  <p className="text-xs font-black uppercase tracking-[0.3em] text-secondary-brown/30 italic">Belum ada ulasan platform yang terekam...</p>
                 </div>
-              </motion.div>
-            )) : (
-              <div className="lg:col-span-3 text-center py-20 bg-bg-cream/20 rounded-[3rem]">
-                <p className="text-[10px] font-black uppercase tracking-[0.5em] text-secondary-brown/20 italic">Belum ada suara kolektif yang terekam...</p>
-              </div>
+              )
             )}
           </div>
         </div>
       </section>
 
-
-      {/* Featured Places Section (Moved to Bottom) */}
-      <section className="py-40 bg-bg-cream/20 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-10">
-          <div className="flex flex-col items-center mb-24 text-center">
-            <h2 className="text-6xl md:text-7xl font-serif text-secondary-brown mb-6 italic tracking-tight">
-              Eksplorasi <span className="text-accent-gold">Terpilih.</span>
+      {/* Featured Places Section (Enhances discoverability) */}
+      <section className="py-20 sm:py-36 bg-bg-cream/30 relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-10">
+          <div className="flex flex-col items-center mb-16 sm:mb-24 text-center space-y-4">
+            <span className="inline-flex items-center gap-2 text-secondary-brown/50 font-extrabold uppercase tracking-[0.3em] text-[10px]">
+              <Sparkles size={12} /> Destinasi Terpilih
+            </span>
+            <h2 className="text-4xl sm:text-6xl font-serif text-secondary-brown leading-tight italic tracking-tight">
+              Eksplorasi <span className="text-secondary-brown italic">Terpopuler.</span>
             </h2>
-            <p className="text-lg text-secondary-brown/60 max-w-xl font-medium uppercase tracking-widest leading-loose">
-              Beberapa destinasi paling inspiratif yang baru saja ditambahkan oleh komunitas kami.
+            <p className="text-sm sm:text-base text-secondary-brown/60 max-w-xl font-medium uppercase tracking-widest leading-loose">
+              Beberapa destinasi paling inspiratif yang baru saja ditambahkan oleh komunitas kami menggunakan kurasi visual otomatis.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
             {featuredPlaces.map((place, idx) => (
               <motion.div
-                key={place.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileInView={{ opacity: 1, scale: 1 }}
+                key={place.id || idx}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: idx * 0.1 }}
-                className="group cursor-pointer"
+                className="group cursor-pointer bg-white p-4 rounded-[2rem] border border-secondary-brown/5 shadow-md hover:shadow-xl transition-all h-full"
                 onClick={() => navigate(user ? `/app/place/${place.id}` : "/login")}
               >
-                <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] shadow-xl mb-6">
-                  <img src={place.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700 grayscale-[20%] group-hover:grayscale-0" alt={place.name} />
-                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest text-secondary-brown shadow-sm">
+                <div className="relative aspect-[4/5] overflow-hidden rounded-[1.5rem] mb-4 sm:mb-6">
+                  <img 
+                    src={place.imageUrl || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800"} 
+                    className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[1000ms]" 
+                    alt={place.name} 
+                  />
+                  <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest text-secondary-brown shadow-sm border border-secondary-brown/5">
                     {place.category}
                   </div>
                 </div>
-                <h3 className="font-serif text-2xl text-secondary-brown italic group-hover:text-accent-gold transition-colors">{place.name}</h3>
-                <div className="flex items-center gap-2 mt-2 opacity-40">
-                  <MapPin size={12} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">{place.location}</span>
+                <h3 className="font-serif text-xl sm:text-2xl text-secondary-brown italic group-hover:text-secondary-brown/70 transition-colors px-1">{place.name}</h3>
+                <div className="flex items-center gap-2 mt-2 opacity-60 px-1 text-secondary-brown">
+                  <MapPin size={10} />
+                  <span className="text-[9px] font-bold uppercase tracking-widest">{place.location}</span>
                 </div>
               </motion.div>
             ))}
@@ -300,45 +370,47 @@ export default function LandingPage() {
         </div>
       </section>
 
-
       {/* Premium CTA */}
-      <section className="py-24 mb-20 bg-white">
-        <div className="max-w-7xl mx-auto px-10">
-          <div className="bg-bg-deep-brown rounded-[3rem] p-16 md:p-24 text-center relative overflow-hidden shadow-2xl border border-accent-gold/10">
-            <div className="absolute top-0 right-0 w-96 h-96 bg-accent-gold/10 rounded-full blur-[100px] -mr-48 -mt-48"></div>
-            <div className="absolute bottom-0 left-0 w-80 h-80 bg-white/30 rounded-full blur-[100px] -ml-40 -mb-40"></div>
+      <section className="py-12 sm:py-20 px-4 sm:px-10 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-[#FAF9F6] rounded-[2.5rem] sm:rounded-[4rem] p-10 sm:p-20 md:p-24 text-center relative overflow-hidden shadow-xl border border-secondary-brown/10">
+            <div className="absolute top-0 right-0 w-64 h-64 sm:w-96 sm:h-96 bg-accent-gold/20 rounded-full blur-[80px] sm:blur-[100px] -mr-32 -mt-32"></div>
+            <div className="absolute bottom-0 left-0 w-64 h-64 sm:w-80 sm:h-80 bg-secondary-brown/5 rounded-full blur-[80px] sm:blur-[100px] -ml-32 -mb-32"></div>
             
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 25 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              className="relative z-10"
+              className="relative z-10 max-w-2xl mx-auto space-y-6 sm:space-y-8"
             >
-              <h2 className="text-5xl md:text-7xl font-serif text-secondary-brown mb-8 leading-tight italic">Ready for <br /> <span className="text-accent-gold">Serenity?</span></h2>
-              <p className="text-xl text-secondary-brown/70 font-black mb-12 max-w-2xl mx-auto leading-relaxed pr-4 uppercase tracking-tighter">
-                Ribuan sudut estetik menanti untuk ditemukan. Bergabunglah sekarang dan jadilah bagian dari kurasi visual terbaik di Indonesia.
+              <h2 className="text-4xl sm:text-6xl font-serif text-secondary-brown leading-tight italic">Siap Menemukan <br /> <span className="text-secondary-brown italic">Kedamaian?</span></h2>
+              <p className="text-sm sm:text-base text-secondary-brown/70 font-bold max-w-lg mx-auto leading-relaxed uppercase tracking-widest">
+                Puluhan destinasi eksotik dan ulasan kurator berpengalaman menanti Anda di dalam platform.
               </p>
-              <Link to={user ? "/app" : "/login"} className="bg-secondary-brown text-white px-12 py-5 rounded-2xl font-black text-xl hover:scale-110 active:scale-95 transition-all inline-block shadow-xl no-underline hover:no-underline focus:no-underline focus:outline-none">
-                {user ? "Ayo Eksplor" : "Join the Collective"}
-              </Link>
+              <div>
+                <Link to={user ? "/app" : "/login"} className="bg-secondary-brown text-white px-8 sm:px-12 py-3.5 sm:py-4.5 rounded-xl font-bold text-sm sm:text-base hover:scale-105 active:scale-95 transition-all inline-block shadow-md">
+                  {user ? "Ayo Eksplor Sekarang" : "Gabung ke Komunitas"}
+                </Link>
+              </div>
             </motion.div>
           </div>
         </div>
       </section>
 
       {/* Elegant Footer */}
-      <footer className="py-24 border-t border-secondary-brown/10 bg-bg-cream text-center">
-        <div className="max-w-7xl mx-auto px-10 space-y-10">
-          <Link className="flex items-center justify-center gap-4 group no-underline hover:no-underline focus:no-underline focus:outline-none" to="/">
-            <div className="w-10 h-10 bg-accent-gold rounded-xl text-white flex items-center justify-center font-serif text-xl border-none">T</div>
-            <span className="font-serif text-2xl tracking-tight text-secondary-brown italic">TemuTempat</span>
+      <footer className="py-16 sm:py-24 border-t border-secondary-brown/10 bg-bg-cream text-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-10 space-y-8 sm:space-y-10">
+          <Link className="flex items-center justify-center gap-3 group no-underline" to="/">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-secondary-brown text-white rounded-xl flex items-center justify-center font-serif text-lg sm:text-xl border-none">T</div>
+            <span className="font-serif text-xl sm:text-2xl tracking-tight text-secondary-brown italic">TemuTempat</span>
           </Link>
-          <div className="flex justify-center gap-10 text-xs font-bold text-secondary-brown/30 uppercase tracking-[0.4em]">
-            <a href="#" className="hover:text-accent-gold transition-colors no-underline">Privasi</a>
-            <a href="#" className="hover:text-accent-gold transition-colors no-underline">Ketentuan</a>
-            <a href="#" className="hover:text-accent-gold transition-colors no-underline">Instagram</a>
+          <div className="flex flex-wrap justify-center gap-6 sm:gap-10 text-[10px] sm:text-xs font-bold text-secondary-brown/40 uppercase tracking-[0.3em]">
+            <a href="#" className="hover:text-secondary-brown transition-colors">Privasi</a>
+            <a href="#" className="hover:text-secondary-brown transition-colors">Ketentuan</a>
+            <a href="#" className="hover:text-secondary-brown transition-colors">Instagram</a>
           </div>
-          <p className="text-lg text-secondary-brown/40 font-light italic">© 2026 TemuTempat. Menemukan kesunyian di tengah kebisingan.</p>
+          <p className="text-xs sm:text-sm text-secondary-brown/50 font-light italic">© 2026 TemuTempat. Menemukan keindahan sejati di setiap sudut.</p>
+          <p className="text-xs sm:text-sm text-secondary-brown/50 font-light italic">CREATED BY RIFDAH R. AISY</p>
         </div>
       </footer>
     </div>

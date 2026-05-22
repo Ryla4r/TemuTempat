@@ -164,7 +164,7 @@ export default function UserManagement() {
         {/* User Table */}
         <div className="bg-bg-cream rounded-[3rem] border border-bg-deep-brown/5 shadow-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left min-w-[800px]">
               <thead>
                 <tr className="bg-bg-deep-brown/5 border-b border-bg-deep-brown/5">
                   <th className="px-10 py-8 text-[10px] font-black text-bg-deep-brown/40 uppercase tracking-[0.3em]">PENJELAJAH</th>
@@ -220,7 +220,7 @@ export default function UserManagement() {
                         </div>
                       </td>
                       <td className="px-10 py-8 text-right">
-                        <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                        <div className="flex items-center justify-end gap-3 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all lg:translate-x-4 lg:group-hover:translate-x-0">
                           <button className="p-3 text-bg-deep-brown/20 hover:text-primary-green hover:bg-primary-green/5 rounded-2xl transition-all bg-transparent border-none cursor-pointer">
                             <Edit3 size={20} />
                           </button>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   Map, 
   AdvancedMarker, 
@@ -10,7 +10,7 @@ import {
   useApiIsLoaded
 } from "@vis.gl/react-google-maps";
 import { Place } from "../types";
-import { Search, Sparkles, MapPin, Plus, ShieldCheck, Navigation, ExternalLink, Route } from "lucide-react";
+import { Search, Sparkles, MapPin, Plus, ShieldCheck, Navigation } from "lucide-react";
 import { Link } from "react-router-dom";
 import { calculateDistance } from "../lib/utils";
 
@@ -191,17 +191,14 @@ function DiscoveryLayer({ onAddFromMap }: { onAddFromMap?: (place: Partial<Place
 function MapHandler({ 
   center, 
   zoom, 
-  places,
   onSearchResults 
 }: { 
   center: [number, number], 
   zoom: number,
-  places?: Place[],
   onSearchResults?: (results: Place[]) => void
 }) {
   const map = useMap();
   const placesLib = useMapsLibrary("places");
-  const prevPlacesCount = useRef(0);
 
   useEffect(() => {
     if (!map) return;
@@ -212,47 +209,6 @@ function MapHandler({
     if (!map) return;
     map.setZoom(zoom);
   }, [map, zoom]);
-
-  // Auto fitBounds when places change (AI search results)
-  useEffect(() => {
-    if (!map || !places || places.length === 0) return;
-    // Only auto-fit when places count changes (new search results)
-    if (places.length !== prevPlacesCount.current && places.length > 1) {
-      prevPlacesCount.current = places.length;
-      const bounds = new google.maps.LatLngBounds();
-      let validCount = 0;
-      places.forEach(p => {
-        if (p.latitude && p.longitude && !isNaN(p.latitude) && !isNaN(p.longitude)) {
-          bounds.extend({ lat: p.latitude, lng: p.longitude });
-          validCount++;
-        }
-      });
-      if (validCount > 1) {
-        map.fitBounds(bounds, { top: 80, bottom: 80, left: 80, right: 80 });
-      } else if (validCount === 1) {
-        const first = places.find(p => p.latitude && p.longitude);
-        if (first) {
-          map.setCenter({ lat: first.latitude, lng: first.longitude });
-          map.setZoom(15);
-        }
-      }
-    }
-  }, [map, places]);
-
-  // Listen for focus-on-place events (from search result hover/click)
-  useEffect(() => {
-    if (!map) return;
-    const handleFocusPlace = (e: any) => {
-      const { lat, lng, zoom: targetZoom } = e.detail;
-      if (lat && lng) {
-        map.panTo({ lat, lng });
-        if (targetZoom) map.setZoom(targetZoom);
-        else if (map.getZoom()! < 15) map.setZoom(15);
-      }
-    };
-    window.addEventListener('map-focus-place', handleFocusPlace);
-    return () => window.removeEventListener('map-focus-place', handleFocusPlace);
-  }, [map]);
 
   useEffect(() => {
     if (!map || !placesLib) return;
@@ -405,7 +361,7 @@ export default function MapComponent({
   }
 
   return (
-    <div className="map-container-fix rounded-[3rem] overflow-hidden border border-secondary-brown/10 shadow-2xl relative z-10 bg-bg-cream">
+    <div className="map-container-fix w-full h-full rounded-[3rem] overflow-hidden border border-secondary-brown/10 shadow-2xl relative z-10 bg-bg-cream">
       {!apiIsLoaded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg-cream/80 backdrop-blur-sm z-[2000]">
           <div className="w-12 h-12 border-4 border-secondary-brown/10 border-t-accent-gold rounded-full animate-spin mb-4"></div>
@@ -431,8 +387,7 @@ export default function MapComponent({
       >
           <MapHandler 
             center={center} 
-            zoom={zoom}
-            places={places}
+            zoom={zoom} 
             onSearchResults={onSearchResults} 
           />
           <DiscoveryLayer onAddFromMap={onAddFromMap} />
@@ -471,12 +426,12 @@ export default function MapComponent({
               }}
               headerDisabled
             >
-              <div className="p-3 max-w-[260px] space-y-2.5">
+              <div className="p-3 max-w-[220px] space-y-2">
                 <div className="flex gap-3">
-                  <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 shadow-sm">
-                    <img src={selectedPlace.imageUrl} className="w-full h-full object-cover" alt="" onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=200&q=80'; }} />
+                  <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+                    <img src={selectedPlace.imageUrl} className="w-full h-full object-cover" alt="" />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
                     <h4 className="font-serif italic text-secondary-brown font-bold text-sm truncate leading-tight">{selectedPlace.name}</h4>
                     <div className="flex items-center gap-1 mt-0.5">
                       <span className="text-[10px] font-bold text-accent-gold">★ {selectedPlace.rating}</span>
@@ -503,33 +458,23 @@ export default function MapComponent({
                   </div>
                 </div>
                 <p className="text-[9px] text-secondary-brown/70 leading-tight line-clamp-2">{selectedPlace.description}</p>
-                
-                {/* Quick Action Buttons */}
-                <div className="flex gap-1.5 pt-2 border-t border-secondary-brown/5">
+                <div className="flex items-center justify-between pt-2 border-t border-secondary-brown/5">
                   <button 
                     onClick={() => {
-                      const origin = userLocation ? `${userLocation[0]},${userLocation[1]}` : '';
-                      const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${selectedPlace.latitude},${selectedPlace.longitude}&travelmode=driving`;
-                      window.open(mapsUrl, '_blank');
+                      if (onNavigateToDetail) {
+                        onNavigateToDetail(selectedPlace);
+                      }
                     }}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-secondary-brown text-white px-2 py-2 rounded-lg text-[8px] font-black uppercase tracking-wider border-none cursor-pointer hover:bg-black transition-colors shadow-sm"
+                    className="text-[9px] font-black text-accent-gold uppercase tracking-widest no-underline hover:text-secondary-brown transition-colors bg-transparent border-none cursor-pointer p-0"
                   >
-                    <Navigation size={10} /> Navigasi
-                  </button>
-                  <button 
-                    onClick={() => {
-                      if (onNavigateToDetail) onNavigateToDetail(selectedPlace);
-                    }}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-accent-gold/20 text-secondary-brown px-2 py-2 rounded-lg text-[8px] font-black uppercase tracking-wider border-none cursor-pointer hover:bg-accent-gold/40 transition-colors"
-                  >
-                    <ExternalLink size={10} /> Detail
+                    Lihat Detail →
                   </button>
                   {onAddFromMap && selectedPlace.addedBy === "Google AI" && (
                     <button 
                       onClick={() => onAddFromMap(selectedPlace)}
-                      className="flex items-center justify-center gap-1 bg-primary-green/20 text-primary-green px-2 py-2 rounded-lg text-[8px] font-bold uppercase border-none cursor-pointer hover:bg-primary-green/30 transition-colors"
+                      className="flex items-center gap-1 bg-accent-gold text-white px-2 py-1 rounded-md text-[8px] font-bold uppercase border-none cursor-pointer hover:bg-secondary-brown transition-colors"
                     >
-                      <Plus size={10} />
+                      <Plus size={8} /> Simpan
                     </button>
                   )}
                 </div>
