@@ -1,36 +1,54 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowRight, MapPin, Sparkles, ShieldCheck, Zap, Star } from "lucide-react";
+import { ArrowRight, MapPin, Sparkles, ShieldCheck, Zap, Star, Heart, MessageCircle, CornerDownRight } from "lucide-react";
 import { motion } from "motion/react";
 import { useAuth } from "../context/AuthContext";
 
 import { feedbackService, SiteReview } from "../services/feedbackService";
 import { dataService } from "../services/dataService";
-import { Review } from "../types";
 import { getUnsplashImage } from "../services/unsplashService";
+
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "baru saja";
+  if (mins < 60) return `${mins} menit lalu`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} jam lalu`;
+  return `${Math.floor(hrs / 24)} hari lalu`;
+}
 
 export default function LandingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [reviews, setReviews] = useState<SiteReview[]>([]);
-  const [placeReviews, setPlaceReviews] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<"places" | "website">("places");
+  const [siteReviews, setSiteReviews] = useState<SiteReview[]>([]);
   const [communityPosts, setCommunityPosts] = useState<any[]>([]);
   const [featuredPlaces, setFeaturedPlaces] = useState<any[]>([]);
-  const [averageRating, setAverageRating] = useState(4.8);
+  const [averageRating, setAverageRating] = useState(0);
+
+  // Realtime site reviews from feedbackService
+  useEffect(() => {
+    const unsub = feedbackService.subscribe((reviews) => {
+      setSiteReviews(reviews);
+      // Hitung rata-rata dari data nyata
+      if (reviews.length > 0) {
+        const avg = reviews.reduce((s, r) => s + r.rating, 0) / reviews.length;
+        setAverageRating(avg);
+      } else {
+        setAverageRating(0);
+      }
+    });
+    return unsub;
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [places, posts, ratingAvg, siteRatings, rawPlaceReviews] = await Promise.all([
+        const [places, posts] = await Promise.all([
           dataService.getPlaces(),
           dataService.getPosts(),
-          dataService.getAverageWebsiteRating(),
-          dataService.getWebsiteRatings(),
-          dataService.getReviews()
         ]);
         
-        // Dynamic Unsplash image enrichment for showcased places
         const enhancedPlaces = await Promise.all(
           places.slice(0, 4).map(async (place: any) => {
             try {
@@ -44,37 +62,9 @@ export default function LandingPage() {
         
         setFeaturedPlaces(enhancedPlaces);
         setCommunityPosts(posts.slice(0, 6));
-        
-        setReviews(siteRatings.map((r: any) => ({
-          id: r.id,
-          userName: r.user_name || r.users?.name || 'Explorer',
-          rating: r.rating,
-          comment: r.review_text,
-          date: r.created_at
-        })));
 
-        // Map place reviews with their corresponding place name
-        const mappedPlaceReviews = rawPlaceReviews.map((r: any) => {
-          const matchedPlace = places.find((p: any) => p.id === r.placeId);
-          return {
-            id: r.id,
-            userName: r.userName || 'Explorer',
-            rating: r.rating,
-            comment: r.comment,
-            targetName: matchedPlace ? matchedPlace.name : "Tempat Rahasia",
-            targetLink: matchedPlace ? `/app/place/${matchedPlace.id}` : "/app",
-            date: r.createdAt
-          };
-        });
-        setPlaceReviews(mappedPlaceReviews);
-
-        // Combined average calculation
-        const allRatings = [
-          ...siteRatings.map((r: any) => r.rating),
-          ...rawPlaceReviews.map((r: any) => r.rating)
-        ];
         const combinedAvg = allRatings.length > 0
-          ? allRatings.reduce((sum, val) => sum + val, 0) / allRatings.length
+          ? allRatings.reduce((sum: number, val: number) => sum + val, 0) / allRatings.length
           : ratingAvg || 4.8;
         setAverageRating(combinedAvg);
       } catch (err) {
@@ -90,9 +80,7 @@ export default function LandingPage() {
       }
     });
 
-    return () => {
-      // Listener removal handled by garbage collection or explicit removal if using dataService.subscribe
-    };
+    return () => {};
   }, []);
 
   return (
@@ -172,7 +160,6 @@ export default function LandingPage() {
                 </motion.div>
               </motion.div>
 
-              {/* Decorative Blur */}
               <div className="absolute -top-10 -right-10 w-64 h-64 sm:w-80 sm:h-80 bg-accent-gold/20 rounded-full blur-[80px] sm:blur-[120px]"></div>
               <div className="absolute top-1/2 -left-10 w-48 h-48 sm:w-64 sm:h-64 bg-secondary-brown/5 rounded-full blur-[70px] sm:blur-[100px]"></div>
             </div>
@@ -180,7 +167,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Website Ratings & Testimonials (Prominent and Repositioned) */}
+      {/* Website Ratings & Testimonials */}
       <section className="py-20 sm:py-32 bg-white relative overflow-hidden border-t border-b border-secondary-brown/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 sm:mb-16 gap-8 text-center md:text-left border-b border-secondary-brown/5 pb-12 sm:pb-16">
@@ -194,136 +181,131 @@ export default function LandingPage() {
             </div>
             
             <div className="flex flex-col md:items-end gap-1.5">
-              <div className="flex items-center justify-center md:justify-end gap-4">
-                <span className="text-5xl sm:text-8xl font-serif text-secondary-brown leading-none italic">{averageRating.toFixed(1)}</span>
-                <div className="flex flex-col items-start">
-                  <div className="flex gap-0.5">
-                    {[1, 2, 3, 4, 5].map(s => (
-                      <Star key={s} size={16} className={`${s <= Math.round(averageRating) ? "fill-secondary-brown text-secondary-brown" : "text-secondary-brown/20"} `} />
-                    ))}
+              {averageRating > 0 ? (
+                <div className="flex items-center justify-center md:justify-end gap-4">
+                  <span className="text-5xl sm:text-8xl font-serif text-secondary-brown leading-none italic">{averageRating.toFixed(1)}</span>
+                  <div className="flex flex-col items-start">
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map(s => (
+                        <Star key={s} size={16} className={`${s <= Math.round(averageRating) ? "fill-secondary-brown text-secondary-brown" : "text-secondary-brown/20"}`} />
+                      ))}
+                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#FFB6C1] mt-1.5">Rating Sangat Baik</p>
                   </div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-[#FFB6C1] mt-1.5">Rating Sangat Baik</p>
                 </div>
-              </div>
+              ) : (
+                <p className="text-sm font-serif italic text-secondary-brown/30">Belum ada rating.</p>
+              )}
               <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.25em] text-secondary-brown/30 md:text-right">
-                Berdasarkan Ulasan {reviews.length + placeReviews.length} Teman Perjalanan
+                Berdasarkan Ulasan {siteReviews.length} Teman Perjalanan
               </p>
             </div>
           </div>
 
-          {/* Tab Switcher for Reviews */}
-          <div className="flex justify-center md:justify-start gap-4 mb-12 border-b border-secondary-brown/5 pb-6">
-            <button
-              onClick={() => setActiveTab("places")}
-              className={`pb-3 border-b-2 font-serif text-sm italic transition-all duration-300 px-4 cursor-pointer focus:outline-none ${activeTab === "places" ? "border-[#FFB6C1] text-secondary-brown font-semibold scale-105" : "border-transparent text-secondary-brown/40 hover:text-secondary-brown/60"}`}
-            >
-              Ulasan Tempat (Google Maps Style)
-            </button>
-            <button
-              onClick={() => setActiveTab("website")}
-              className={`pb-3 border-b-2 font-serif text-sm italic transition-all duration-300 px-4 cursor-pointer focus:outline-none ${activeTab === "website" ? "border-[#FFB6C1] text-secondary-brown font-semibold scale-105" : "border-transparent text-secondary-brown/40 hover:text-secondary-brown/60"}`}
-            >
-              Ulasan Platform
-            </button>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 sm:gap-10">
-            {activeTab === "places" ? (
-              placeReviews.length > 0 ? (
-                placeReviews.map((review, idx) => (
-                  <motion.div
-                    key={review.id || idx}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: idx * 0.1 }}
-                    className="bg-bg-cream/40 p-8 sm:p-12 rounded-[2.5rem] sm:rounded-[3rem] border border-secondary-brown/10 flex flex-col justify-between group hover:bg-neutral-50 hover:shadow-xl transition-all duration-500 h-full border-b-[5px] border-b-[#FFB6C1]/30"
-                  >
-                    <div className="space-y-6 sm:space-y-8">
-                      <div className="flex justify-between items-start">
-                        <div className="flex gap-0.5">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star 
-                              key={star} 
-                              size={14} 
-                              className={star <= review.rating ? "text-secondary-brown fill-secondary-brown" : "text-secondary-brown/10"} 
-                            />
-                          ))}
-                        </div>
-                        <span className="text-[8px] font-black uppercase tracking-widest text-[#FFB6C1] bg-[#FFB6C1]/5 px-2.5 py-1 rounded-full">
-                          Google Review
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-xl sm:text-2xl font-serif text-secondary-brown/90 leading-relaxed italic pr-2 mb-4">
-                          "{review.comment}"
-                        </p>
-                        <span className="text-[10px] font-bold text-secondary-brown/50 uppercase tracking-wider block">
-                          Mengulas: <Link to={review.targetLink} className="underline hover:text-[#FFB6C1] font-serif italic capitalize text-secondary-brown">{review.targetName}</Link>
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-secondary-brown/10 flex items-center gap-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center font-serif text-secondary-brown text-xl shadow-md border border-secondary-brown/5 group-hover:bg-[#FFB6C1] group-hover:text-white transition-colors duration-300 uppercase font-bold">
-                        {review.userName ? review.userName.charAt(0) : "E"}
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black text-secondary-brown uppercase tracking-[0.15em]">{review.userName || 'Explorer'}</h4>
-                        <p className="text-[9px] font-bold text-secondary-brown/40 uppercase tracking-widest mt-0.5">Penemu Lokal Terverifikasi</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))
-              ) : (
-                <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 sm:py-20 bg-bg-cream/20 rounded-[3rem] border border-dashed border-secondary-brown/15">
-                  <p className="text-xs font-black uppercase tracking-[0.3em] text-secondary-brown/30 italic">Belum ada ulasan tempat dari Google Maps style...</p>
-                </div>
-              )
-            ) : (
-              reviews.length > 0 ? reviews.map((review, idx) => (
+            {siteReviews.length > 0 ? siteReviews.map((review, idx) => (
                 <motion.div
                   key={review.id || idx}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: idx * 0.1 }}
-                  className="bg-bg-cream/40 p-8 sm:p-12 rounded-[2.5rem] sm:rounded-[3rem] border border-secondary-brown/10 flex flex-col justify-between group hover:bg-neutral-50 hover:shadow-xl transition-all duration-500 h-full border-b-[5px] border-b-secondary-brown/20"
+                  className="bg-bg-cream/40 p-8 sm:p-10 rounded-[2.5rem] sm:rounded-[3rem] border border-secondary-brown/10 flex flex-col justify-between group hover:bg-neutral-50 hover:shadow-xl transition-all duration-500 h-full border-b-[5px] border-b-secondary-brown/20"
                 >
-                  <div className="space-y-6 sm:space-y-8">
+                  <div className="space-y-5">
+                    {/* Stars */}
                     <div className="flex gap-0.5">
                       {[1, 2, 3, 4, 5].map((star) => (
-                        <Star 
-                          key={star} 
-                          size={14} 
-                          className={star <= review.rating ? "text-secondary-brown fill-secondary-brown" : "text-secondary-brown/10"} 
-                        />
+                        <Star key={star} size={14} className={star <= review.rating ? "text-secondary-brown fill-secondary-brown" : "text-secondary-brown/10"} />
                       ))}
                     </div>
+
+                    {/* Comment */}
                     <p className="text-xl sm:text-2xl font-serif text-secondary-brown/90 leading-relaxed italic pr-2">
                       "{review.comment}"
                     </p>
+
+                    {/* Like & Reply count — read only di landing page */}
+                    <div className="flex items-center gap-5 pt-1">
+                      {review.likes?.length > 0 && (
+                        <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-secondary-brown/30">
+                          <Heart size={12} className="fill-red-300 text-red-300" />
+                          {review.likes.length}
+                        </span>
+                      )}
+                      {review.replies?.length > 0 && (
+                        <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-secondary-brown/30">
+                          <MessageCircle size={12} />
+                          {review.replies.length} balasan
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Show up to 1 reply preview */}
+                    {review.replies?.length > 0 && (
+                      <div className="bg-white/60 rounded-2xl p-4 border border-secondary-brown/5 flex gap-2 items-start">
+                        <CornerDownRight size={10} className="text-secondary-brown/20 mt-1 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            <span className="text-[9px] font-black text-secondary-brown uppercase tracking-wide">
+                              {review.replies[0].userName}
+                            </span>
+                            {review.replies[0].userRole === "admin" && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-secondary-brown text-white rounded-full text-[7px] font-black uppercase tracking-widest">
+                                <ShieldCheck size={7} /> Admin
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-secondary-brown/50 font-serif italic line-clamp-1">{review.replies[0].text}</p>
+                          {review.replies.length > 1 && (
+                            <p className="text-[9px] text-secondary-brown/30 font-bold mt-1">+{review.replies.length - 1} balasan lainnya</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-secondary-brown/10 flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center font-serif text-secondary-brown text-xl shadow-md border border-secondary-brown/5 group-hover:bg-secondary-brown group-hover:text-white transition-colors duration-300 uppercase font-bold">
-                      {review.userName ? review.userName.charAt(0) : "E"}
+
+                  {/* Footer */}
+                  <div className="mt-8 pt-6 border-t border-secondary-brown/10 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center font-serif text-secondary-brown text-lg shadow-md border border-secondary-brown/5 group-hover:bg-secondary-brown group-hover:text-white transition-colors duration-300 uppercase font-bold shrink-0">
+                        {review.userName ? review.userName.charAt(0) : "E"}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="text-xs font-black text-secondary-brown uppercase tracking-[0.15em]">{review.userName || 'Explorer'}</h4>
+                          {review.userRole === "admin" && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-secondary-brown text-white rounded-full text-[7px] font-black uppercase tracking-widest">
+                              <ShieldCheck size={7} /> Admin
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[9px] font-bold text-secondary-brown/40 uppercase tracking-widest mt-0.5">
+                          {timeAgo(review.createdAt)}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-xs font-black text-secondary-brown uppercase tracking-[0.15em]">{review.userName || 'Explorer'}</h4>
-                      <p className="text-[9px] font-bold text-secondary-brown/40 uppercase tracking-widest mt-0.5">Anggota Terverifikasi</p>
-                    </div>
+                    {/* CTA untuk login */}
+                    {!user && (
+                      <Link
+                        to="/login"
+                        className="text-[9px] font-black uppercase tracking-widest text-secondary-brown/30 hover:text-secondary-brown transition-colors no-underline border border-secondary-brown/10 px-3 py-1.5 rounded-full"
+                      >
+                        Like & Balas →
+                      </Link>
+                    )}
                   </div>
                 </motion.div>
               )) : (
                 <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 sm:py-20 bg-bg-cream/20 rounded-[3rem] border border-dashed border-secondary-brown/15">
                   <p className="text-xs font-black uppercase tracking-[0.3em] text-secondary-brown/30 italic">Belum ada ulasan platform yang terekam...</p>
                 </div>
-              )
-            )}
+              )}
           </div>
         </div>
       </section>
 
-      {/* Featured Places Section (Enhances discoverability) */}
+      {/* Featured Places Section */}
       <section className="py-20 sm:py-36 bg-bg-cream/30 relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-10">
           <div className="flex flex-col items-center mb-16 sm:mb-24 text-center space-y-4">
@@ -405,9 +387,9 @@ export default function LandingPage() {
             <span className="font-serif text-xl sm:text-2xl tracking-tight text-secondary-brown italic">TemuTempat</span>
           </Link>
           <div className="flex flex-wrap justify-center gap-6 sm:gap-10 text-[10px] sm:text-xs font-bold text-secondary-brown/40 uppercase tracking-[0.3em]">
-            <a href="#" className="hover:text-secondary-brown transition-colors">Privasi</a>
-            <a href="#" className="hover:text-secondary-brown transition-colors">Ketentuan</a>
-            <a href="#" className="hover:text-secondary-brown transition-colors">Instagram</a>
+            <a href="https://www.tiktok.com/@ars1pida_?_r=1&_t=ZS-96XSFfCdCeC" target="_blank" rel="noopener noreferrer" className="hover:text-secondary-brown transition-colors">TikTok</a>
+            <a href="https://linktr.ee/rylaa_" target="_blank" rel="noopener noreferrer" className="hover:text-secondary-brown transition-colors">Linktree</a>
+            <a href="https://www.instagram.com/syrra.js?igsh=MW5pMWZrcnhwaTFocw==" target="_blank" rel="noopener noreferrer" className="hover:text-secondary-brown transition-colors">Instagram</a>
           </div>
           <p className="text-xs sm:text-sm text-secondary-brown/50 font-light italic">© 2026 TemuTempat. Menemukan keindahan sejati di setiap sudut.</p>
           <p className="text-xs sm:text-sm text-secondary-brown/50 font-light italic">CREATED BY RIFDAH R. AISY</p>

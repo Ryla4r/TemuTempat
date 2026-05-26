@@ -26,6 +26,7 @@
     "express": "^4.22.1",
     "express-fileupload": "^1.5.2",
     "firebase": "^12.12.1",
+    "groq-sdk": "^1.2.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.546.0",
     "motion": "^12.38.0",
